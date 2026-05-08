@@ -198,7 +198,7 @@ async function deleteTransaction(id) {
     }
 }
 
-// ✅ PERFECT CSV EXPORT - 200% Clear Alignment
+// ✅ CSV Export
 function exportToCSV() {
     const incomes = transactions.filter(t => t.type === 'income');
     const expenses = transactions.filter(t => t.type === 'expense');
@@ -208,7 +208,6 @@ function exportToCSV() {
 
     let csv = [];
     
-    // INCOME SECTION
     csv.push('INCOME TRANSACTIONS');
     csv.push('Date,Description,Category,Amount');
     incomes.forEach(t => {
@@ -220,7 +219,6 @@ function exportToCSV() {
     csv.push('');
     csv.push('');
     
-    // EXPENSE SECTION
     csv.push('EXPENSE TRANSACTIONS');
     csv.push('Date,Description,Category,Amount');
     expenses.forEach(t => {
@@ -232,7 +230,6 @@ function exportToCSV() {
     csv.push('');
     csv.push('');
     
-    // SUMMARY SECTION
     csv.push('SUMMARY');
     csv.push(`Total Income,₹${incomeTotal.toFixed(2)}`);
     csv.push(`Total Expenses,₹${expenseTotal.toFixed(2)}`);
@@ -249,7 +246,7 @@ function exportToCSV() {
     URL.revokeObjectURL(url);
 }
 
-// ✅ PERFECT PDF EXPORT - 200% Clear Alignment - Numbers Stay Inside Borders
+// ✅ FIXED PDF Export - Replaced ₹ with Rs. to fix alignment/symbol issue
 function exportToPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -280,33 +277,34 @@ function exportToPDF() {
     const tableColumn = ["Date", "Description", "Category", "Amount"];
     const incomeTableRows = incomes.map(t => [
         t.date,
-        t.description.length > 35 ? t.description.substring(0, 32) + '...' : t.description,
+        t.description.length > 30 ? t.description.substring(0, 27) + '...' : t.description,
         t.category,
-        `₹${t.amount.toFixed(2)}`
+        `Rs. ${t.amount.toFixed(2)}`  // FIXED: Changed ₹ to Rs.
     ]);
 
     doc.autoTable({
         head: [tableColumn],
         body: incomeTableRows,
         startY: currentY,
-        theme: 'striped',
+        theme: 'grid',
         headStyles: { 
             fillColor: [67, 233, 123], 
             textColor: 255,
             fontStyle: 'bold',
-            halign: 'center'
+            halign: 'center',
+            fontSize: 10
         },
         styles: { 
             fontSize: 9, 
-            cellPadding: 3, 
+            cellPadding: 4, 
             overflow: 'linebreak',
             lineWidth: 0.1
         },
         columnStyles: {
-            0: { cellWidth: 28, halign: 'center' },
-            1: { cellWidth: 75 },
-            2: { cellWidth: 35, halign: 'center' },
-            3: { halign: 'right', fontStyle: 'bold', cellWidth: 38 }
+            0: { cellWidth: 30, halign: 'center' },
+            1: { cellWidth: 70 },
+            2: { cellWidth: 40, halign: 'center' },
+            3: { halign: 'right', fontStyle: 'bold', cellWidth: 36 }
         },
         margin: { left: 14, right: 14 }
     });
@@ -314,7 +312,7 @@ function exportToPDF() {
     currentY = doc.lastAutoTable.finalY + 6;
     doc.setFontSize(11);
     doc.setTextColor(67, 233, 123);
-    doc.text(`Total Income: ₹${incomeTotal.toFixed(2)}`, 14, currentY);
+    doc.text(`Total Income: Rs. ${incomeTotal.toFixed(2)}`, 14, currentY); // FIXED
     currentY += 15;
 
     // EXPENSE SECTION
@@ -325,33 +323,34 @@ function exportToPDF() {
     
     const expenseTableRows = expenses.map(t => [
         t.date,
-        t.description.length > 35 ? t.description.substring(0, 32) + '...' : t.description,
+        t.description.length > 30 ? t.description.substring(0, 27) + '...' : t.description,
         t.category,
-        `₹${t.amount.toFixed(2)}`
+        `Rs. ${t.amount.toFixed(2)}` // FIXED
     ]);
 
     doc.autoTable({
         head: [tableColumn],
         body: expenseTableRows,
         startY: currentY,
-        theme: 'striped',
+        theme: 'grid',
         headStyles: { 
             fillColor: [250, 112, 154], 
             textColor: 255,
             fontStyle: 'bold',
-            halign: 'center'
+            halign: 'center',
+            fontSize: 10
         },
         styles: { 
             fontSize: 9, 
-            cellPadding: 3, 
+            cellPadding: 4, 
             overflow: 'linebreak',
             lineWidth: 0.1
         },
         columnStyles: {
-            0: { cellWidth: 28, halign: 'center' },
-            1: { cellWidth: 75 },
-            2: { cellWidth: 35, halign: 'center' },
-            3: { halign: 'right', fontStyle: 'bold', cellWidth: 38 }
+            0: { cellWidth: 30, halign: 'center' },
+            1: { cellWidth: 70 },
+            2: { cellWidth: 40, halign: 'center' },
+            3: { halign: 'right', fontStyle: 'bold', cellWidth: 36 }
         },
         margin: { left: 14, right: 14 }
     });
@@ -359,19 +358,19 @@ function exportToPDF() {
     currentY = doc.lastAutoTable.finalY + 6;
     doc.setFontSize(11);
     doc.setTextColor(250, 112, 154);
-    doc.text(`Total Expenses: ₹${expenseTotal.toFixed(2)}`, 14, currentY);
+    doc.text(`Total Expenses: Rs. ${expenseTotal.toFixed(2)}`, 14, currentY); // FIXED
     currentY += 15;
 
-    // SUMMARY SECTION - PERFECT ALIGNMENT
+    // SUMMARY SECTION
     doc.setFontSize(14);
     doc.setTextColor(102, 126, 234);
     doc.text('SUMMARY', 14, currentY);
     currentY += 8;
     
     const summaryData = [
-        ['Total Income', `₹${incomeTotal.toFixed(2)}`],
-        ['Total Expenses', `₹${expenseTotal.toFixed(2)}`],
-        ['Balance', `₹${balance.toFixed(2)}`],
+        ['Total Income', `Rs. ${incomeTotal.toFixed(2)}`], // FIXED
+        ['Total Expenses', `Rs. ${expenseTotal.toFixed(2)}`], // FIXED
+        ['Balance', `Rs. ${balance.toFixed(2)}`], // FIXED
         ['Total Transactions', `${transactions.length}`]
     ];
 
@@ -384,12 +383,13 @@ function exportToPDF() {
             cellPadding: 6,
             halign: 'left',
             lineWidth: 0.2,
-            fillColor: [255, 255, 255]
+            fillColor: [255, 255, 255],
+            overflow: 'linebreak'
         },
         columnStyles: {
             0: { 
                 fontStyle: 'bold', 
-                cellWidth: 100,
+                cellWidth: 95,
                 fillColor: [245, 248, 255],
                 halign: 'left',
                 textColor: [50, 50, 50]
@@ -397,16 +397,16 @@ function exportToPDF() {
             1: { 
                 fontStyle: 'bold', 
                 halign: 'right', 
-                cellWidth: 70,
+                cellWidth: 65,
                 fillColor: [245, 248, 255],
                 textColor: [50, 50, 50]
             }
         },
         margin: { left: 14, right: 14 },
-        tableWidth: 'auto'
+        tableWidth: 155
     });
 
-    // Footer with Powered by @IAC
+    // Footer
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
