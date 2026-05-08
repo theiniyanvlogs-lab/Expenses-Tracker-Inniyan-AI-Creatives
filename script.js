@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function generateUserId() {
     let storedId = localStorage.getItem('expenseTrackerUserId');
     if (!storedId) {
-        storedId = 'user_shared_expenses'; // Fixed ID for all devices
+        storedId = 'user_shared_expenses';
         localStorage.setItem('expenseTrackerUserId', storedId);
     }
     userId = storedId;
@@ -35,12 +35,10 @@ function setupEventListeners() {
     document.getElementById('exportPdfBtn').addEventListener('click', exportToPDF);
     document.getElementById('clearBtn').addEventListener('click', clearAllData);
     
-    // Modal events
     document.getElementById('previewBtn').addEventListener('click', () => openModal('dateRangeModal'));
     document.querySelector('.close-modal').addEventListener('click', () => closeModal('dateRangeModal'));
     document.getElementById('generatePreviewBtn').addEventListener('click', generateDatePreview);
     
-    // Real-time Firebase sync
     syncTransactions();
 }
 
@@ -115,17 +113,14 @@ function renderTransactions(data) {
     const incomes = data.filter(t => t.type === 'income');
     const expenses = data.filter(t => t.type === 'expense');
 
-    // Render income transactions
     incomeList.innerHTML = incomes.length 
         ? incomes.map(t => createTransactionHTML(t, 'income')).join('') 
         : '<p class="empty-msg">No income yet</p>';
     
-    // Render expense transactions
     expenseList.innerHTML = expenses.length 
         ? expenses.map(t => createTransactionHTML(t, 'expense')).join('') 
         : '<p class="empty-msg">No expenses yet</p>';
 
-    // Calculate and display totals
     const incomeTotal = incomes.reduce((sum, t) => sum + t.amount, 0);
     const expenseTotal = expenses.reduce((sum, t) => sum + t.amount, 0);
     
@@ -151,7 +146,7 @@ function createTransactionHTML(t, type) {
     `;
 }
 
-// Filter and render transactions based on search and month
+// Filter and render transactions
 function filterAndRender() {
     const search = document.getElementById('searchInput').value.toLowerCase();
     const monthFilter = document.getElementById('filterMonth').value;
@@ -180,16 +175,10 @@ function filterAndRender() {
     renderTransactions(filtered);
 }
 
-// Update summary cards (total income, expense, balance)
+// Update summary cards
 function updateSummary() {
-    const inc = transactions
-        .filter(t => t.type === 'income')
-        .reduce((sum, t) => sum + t.amount, 0);
-    
-    const exp = transactions
-        .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + t.amount, 0);
-    
+    const inc = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+    const exp = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
     const balance = inc - exp;
     
     document.getElementById('totalIncome').textContent = `₹${inc.toFixed(2)}`;
@@ -197,10 +186,9 @@ function updateSummary() {
     document.getElementById('balance').textContent = `₹${balance.toFixed(2)}`;
 }
 
-// Delete a transaction from Firebase
+// Delete a transaction
 async function deleteTransaction(id) {
     if (!confirm('Delete this transaction?')) return;
-    
     try {
         await db.collection('transactions').doc(id).delete();
         updateSyncStatus('✅ Deleted', 'synced');
@@ -210,38 +198,49 @@ async function deleteTransaction(id) {
     }
 }
 
-// ✅ UPDATED: Export to CSV with separate Income/Expense columns and totals
+// ✅ FIXED: Export to CSV with proper alignment
 function exportToCSV() {
     const incomes = transactions.filter(t => t.type === 'income');
     const expenses = transactions.filter(t => t.type === 'expense');
     const incomeTotal = incomes.reduce((sum, t) => sum + t.amount, 0);
     const expenseTotal = expenses.reduce((sum, t) => sum + t.amount, 0);
+    const balance = incomeTotal - expenseTotal;
 
-    let csv = 'INCOME TRANSACTIONS\n';
-    csv += 'Date,Description,Category,Amount\n';
+    let csv = [];
+    
+    // INCOME SECTION
+    csv.push('INCOME TRANSACTIONS');
+    csv.push('Date,Description,Category,Amount');
     incomes.forEach(t => {
-        csv += `${t.date},"${t.description.replace(/"/g, '""')}",${t.category},${t.amount}\n`;
+        const desc = t.description.replace(/"/g, '""').replace(/\n/g, ' ');
+        csv.push(`${t.date},"${desc}",${t.category},${t.amount.toFixed(2)}`);
     });
-    csv += '\n';
-    csv += `TOTAL INCOME,,,₹${incomeTotal.toFixed(2)}\n`;
-    csv += '\n\n';
+    csv.push('');
+    csv.push(`TOTAL INCOME,,,₹${incomeTotal.toFixed(2)}`);
+    csv.push('');
+    csv.push('');
     
-    csv += 'EXPENSE TRANSACTIONS\n';
-    csv += 'Date,Description,Category,Amount\n';
+    // EXPENSE SECTION
+    csv.push('EXPENSE TRANSACTIONS');
+    csv.push('Date,Description,Category,Amount');
     expenses.forEach(t => {
-        csv += `${t.date},"${t.description.replace(/"/g, '""')}",${t.category},${t.amount}\n`;
+        const desc = t.description.replace(/"/g, '""').replace(/\n/g, ' ');
+        csv.push(`${t.date},"${desc}",${t.category},${t.amount.toFixed(2)}`);
     });
-    csv += '\n';
-    csv += `TOTAL EXPENSES,,,₹${expenseTotal.toFixed(2)}\n`;
-    csv += '\n\n';
+    csv.push('');
+    csv.push(`TOTAL EXPENSES,,,₹${expenseTotal.toFixed(2)}`);
+    csv.push('');
+    csv.push('');
     
-    csv += 'SUMMARY\n';
-    csv += `Total Income,₹${incomeTotal.toFixed(2)}\n`;
-    csv += `Total Expenses,₹${expenseTotal.toFixed(2)}\n`;
-    csv += `Balance,₹${(incomeTotal - expenseTotal).toFixed(2)}\n`;
-    csv += `Total Transactions,${transactions.length}\n`;
+    // SUMMARY SECTION
+    csv.push('SUMMARY');
+    csv.push(`Total Income,₹${incomeTotal.toFixed(2)}`);
+    csv.push(`Total Expenses,₹${expenseTotal.toFixed(2)}`);
+    csv.push(`Balance,₹${balance.toFixed(2)}`);
+    csv.push(`Total Transactions,${transactions.length}`);
 
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const csvContent = csv.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -250,7 +249,7 @@ function exportToCSV() {
     URL.revokeObjectURL(url);
 }
 
-// ✅ UPDATED: Export to PDF with separate Income/Expense sections and totals
+// ✅ FIXED: Export to PDF with proper alignment and formatting
 function exportToPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -262,7 +261,7 @@ function exportToPDF() {
     const balance = incomeTotal - expenseTotal;
 
     // Title
-    doc.setFontSize(20);
+    doc.setFontSize(22);
     doc.setTextColor(102, 126, 234);
     doc.text('Expense Tracker Report', 105, 15, { align: 'center' });
     
@@ -270,76 +269,94 @@ function exportToPDF() {
     doc.setTextColor(100, 100, 100);
     doc.text(`Generated: ${new Date().toLocaleDateString('en-IN')}`, 105, 22, { align: 'center' });
 
+    let currentY = 35;
+
     // INCOME SECTION
     doc.setFontSize(14);
-    doc.setTextColor(67, 233, 123); // Green
-    doc.text('INCOME TRANSACTIONS', 14, 35);
+    doc.setTextColor(67, 233, 123);
+    doc.text('INCOME TRANSACTIONS', 14, currentY);
+    currentY += 8;
     
-    const incomeTableColumn = ["Date", "Description", "Category", "Amount"];
+    const tableColumn = ["Date", "Description", "Category", "Amount"];
     const incomeTableRows = incomes.map(t => [
         t.date,
-        t.description,
+        t.description.length > 35 ? t.description.substring(0, 32) + '...' : t.description,
         t.category,
         `₹${t.amount.toFixed(2)}`
     ]);
 
     doc.autoTable({
-        head: [incomeTableColumn],
+        head: [tableColumn],
         body: incomeTableRows,
-        startY: 40,
+        startY: currentY,
         theme: 'striped',
-        headStyles: { fillColor: [67, 233, 123], textColor: 255 },
-        styles: { fontSize: 10 },
+        headStyles: { 
+            fillColor: [67, 233, 123], 
+            textColor: 255,
+            fontStyle: 'bold',
+            halign: 'center'
+        },
+        styles: { fontSize: 9, cellPadding: 3, overflow: 'linebreak' },
         columnStyles: {
-            3: { halign: 'right', fontStyle: 'bold' }
-        }
+            0: { cellWidth: 28, halign: 'center' },
+            1: { cellWidth: 75 },
+            2: { cellWidth: 35, halign: 'center' },
+            3: { halign: 'right', fontStyle: 'bold', cellWidth: 38 }
+        },
+        margin: { left: 14, right: 14 }
     });
 
-    // Income Total
-    const incomeFinalY = doc.lastAutoTable.finalY + 5;
-    doc.setFontSize(12);
+    currentY = doc.lastAutoTable.finalY + 6;
+    doc.setFontSize(11);
     doc.setTextColor(67, 233, 123);
-    doc.text(`Total Income: ₹${incomeTotal.toFixed(2)}`, 14, incomeFinalY);
+    doc.text(`Total Income: ₹${incomeTotal.toFixed(2)}`, 14, currentY);
+    currentY += 15;
 
     // EXPENSE SECTION
-    const expenseStartY = incomeFinalY + 15;
     doc.setFontSize(14);
-    doc.setTextColor(250, 112, 154); // Pink/Red
-    doc.text('EXPENSE TRANSACTIONS', 14, expenseStartY);
+    doc.setTextColor(250, 112, 154);
+    doc.text('EXPENSE TRANSACTIONS', 14, currentY);
+    currentY += 8;
     
     const expenseTableRows = expenses.map(t => [
         t.date,
-        t.description,
+        t.description.length > 35 ? t.description.substring(0, 32) + '...' : t.description,
         t.category,
         `₹${t.amount.toFixed(2)}`
     ]);
 
     doc.autoTable({
-        head: [incomeTableColumn],
+        head: [tableColumn],
         body: expenseTableRows,
-        startY: expenseStartY + 5,
+        startY: currentY,
         theme: 'striped',
-        headStyles: { fillColor: [250, 112, 154], textColor: 255 },
-        styles: { fontSize: 10 },
+        headStyles: { 
+            fillColor: [250, 112, 154], 
+            textColor: 255,
+            fontStyle: 'bold',
+            halign: 'center'
+        },
+        styles: { fontSize: 9, cellPadding: 3, overflow: 'linebreak' },
         columnStyles: {
-            3: { halign: 'right', fontStyle: 'bold' }
-        }
+            0: { cellWidth: 28, halign: 'center' },
+            1: { cellWidth: 75 },
+            2: { cellWidth: 35, halign: 'center' },
+            3: { halign: 'right', fontStyle: 'bold', cellWidth: 38 }
+        },
+        margin: { left: 14, right: 14 }
     });
 
-    // Expense Total
-    const expenseFinalY = doc.lastAutoTable.finalY + 5;
-    doc.setFontSize(12);
+    currentY = doc.lastAutoTable.finalY + 6;
+    doc.setFontSize(11);
     doc.setTextColor(250, 112, 154);
-    doc.text(`Total Expenses: ₹${expenseTotal.toFixed(2)}`, 14, expenseFinalY);
+    doc.text(`Total Expenses: ₹${expenseTotal.toFixed(2)}`, 14, currentY);
+    currentY += 15;
 
     // SUMMARY SECTION
-    const summaryStartY = expenseFinalY + 15;
     doc.setFontSize(14);
-    doc.setTextColor(102, 126, 234); // Purple
-    doc.text('SUMMARY', 14, summaryStartY);
-    
-    doc.setFontSize(11);
-    doc.setTextColor(0, 0, 0);
+    doc.setTextColor(102, 126, 234);
+    doc.text('SUMMARY', 14, currentY);
+    currentY += 8;
     
     const summaryData = [
         ['Total Income', `₹${incomeTotal.toFixed(2)}`],
@@ -350,17 +367,17 @@ function exportToPDF() {
 
     doc.autoTable({
         body: summaryData,
-        startY: summaryStartY + 5,
+        startY: currentY,
         theme: 'grid',
-        styles: { fontSize: 11, cellPadding: 5 },
+        styles: { fontSize: 10, cellPadding: 5, halign: 'left' },
         columnStyles: {
-            0: { fontStyle: 'bold', cellWidth: 80 },
-            1: { fontStyle: 'bold', halign: 'right', cellWidth: 60 }
+            0: { fontStyle: 'bold', cellWidth: 95, fillColor: [248, 249, 250] },
+            1: { fontStyle: 'bold', halign: 'right', cellWidth: 60, fillColor: [248, 249, 250] }
         },
         margin: { left: 14, right: 14 }
     });
 
-    // Footer with Powered by @IAC
+    // Footer
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
@@ -373,82 +390,49 @@ function exportToPDF() {
 }
 
 // Modal functions
-function openModal(id) { 
-    document.getElementById(id).classList.remove('hidden'); 
-}
-function closeModal(id) { 
-    document.getElementById(id).classList.add('hidden'); 
-}
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
 // Generate date range preview
 function generateDatePreview() {
     const from = document.getElementById('fromDate').value;
     const to = document.getElementById('toDate').value;
     
-    if (!from || !to) { 
-        alert('Please select both dates'); 
-        return; 
-    }
+    if (!from || !to) { alert('Please select both dates'); return; }
 
     const filtered = transactions.filter(t => t.date >= from && t.date <= to);
     const resultDiv = document.getElementById('previewResult');
     resultDiv.classList.remove('hidden');
     
-    resultDiv.innerHTML = `
-        <h3 style="text-align:center;margin-bottom:20px;color:#667eea;">
-            📅 Preview: ${formatDate(from)} to ${formatDate(to)}
-        </h3>
-    `;
+    resultDiv.innerHTML = `<h3 style="text-align:center;margin-bottom:20px;color:#667eea;">📅 Preview: ${formatDate(from)} to ${formatDate(to)}</h3>`;
     
     const tempDiv = document.createElement('div');
     tempDiv.className = 'columns-wrapper preview-columns';
     tempDiv.innerHTML = `
-        <div class="column income-column">
-            <h3><i class="fas fa-arrow-down"></i> Income</h3>
-            <div id="previewIncome"></div>
-            <div class="column-total">Total: <span id="previewIncomeTotal"></span></div>
-        </div>
-        <div class="column expense-column">
-            <h3><i class="fas fa-arrow-up"></i> Expenses</h3>
-            <div id="previewExpense"></div>
-            <div class="column-total">Total: <span id="previewExpenseTotal"></span></div>
-        </div>
+        <div class="column income-column"><h3><i class="fas fa-arrow-down"></i> Income</h3><div id="previewIncome"></div><div class="column-total">Total: <span id="previewIncomeTotal"></span></div></div>
+        <div class="column expense-column"><h3><i class="fas fa-arrow-up"></i> Expenses</h3><div id="previewExpense"></div><div class="column-total">Total: <span id="previewExpenseTotal"></span></div></div>
     `;
     resultDiv.appendChild(tempDiv);
 
     const incomes = filtered.filter(t => t.type === 'income');
     const expenses = filtered.filter(t => t.type === 'expense');
 
-    document.getElementById('previewIncome').innerHTML = 
-        incomes.map(t => createTransactionHTML(t, 'income')).join('') || 
-        '<p class="empty-msg">No income</p>';
-    
-    document.getElementById('previewExpense').innerHTML = 
-        expenses.map(t => createTransactionHTML(t, 'expense')).join('') || 
-        '<p class="empty-msg">No expenses</p>';
-    
-    document.getElementById('previewIncomeTotal').textContent = 
-        `₹${incomes.reduce((s,t)=>s+t.amount,0).toFixed(2)}`;
-    
-    document.getElementById('previewExpenseTotal').textContent = 
-        `₹${expenses.reduce((s,t)=>s+t.amount,0).toFixed(2)}`;
+    document.getElementById('previewIncome').innerHTML = incomes.map(t => createTransactionHTML(t, 'income')).join('') || '<p class="empty-msg">No income</p>';
+    document.getElementById('previewExpense').innerHTML = expenses.map(t => createTransactionHTML(t, 'expense')).join('') || '<p class="empty-msg">No expenses</p>';
+    document.getElementById('previewIncomeTotal').textContent = `₹${incomes.reduce((s,t)=>s+t.amount,0).toFixed(2)}`;
+    document.getElementById('previewExpenseTotal').textContent = `₹${expenses.reduce((s,t)=>s+t.amount,0).toFixed(2)}`;
     
     closeModal('dateRangeModal');
 }
 
-// Clear all data from Firebase
+// Clear all data
 async function clearAllData() {
-    if (!confirm('⚠️ Delete ALL transactions? This cannot be undone!')) return;
-    
+    if (!confirm('⚠️ Delete ALL transactions?')) return;
     try {
-        const snapshot = await db.collection('transactions')
-            .where('userId', '==', userId)
-            .get();
-        
+        const snapshot = await db.collection('transactions').where('userId', '==', userId).get();
         const batch = db.batch();
         snapshot.forEach(doc => batch.delete(doc.ref));
         await batch.commit();
-        
         updateSyncStatus('✅ All data cleared', 'synced');
     } catch (err) {
         console.error('Error clearing:', err);
@@ -456,32 +440,21 @@ async function clearAllData() {
     }
 }
 
-// Format date to Indian format
+// Format date
 function formatDate(dateStr) {
-    return new Date(dateStr).toLocaleDateString('en-IN', { 
-        day: 'numeric', 
-        month: 'short', 
-        year: 'numeric' 
-    });
+    return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-// Get emoji for category
+// Get category emoji
 function getCategoryEmoji(cat) {
     const emojis = {
-        food: '🍔',
-        transport: '🚗',
-        shopping: '🛍️',
-        bills: '📄',
-        entertainment: '🎬',
-        health: '🏥',
-        salary: '💼',
-        investment: '📈',
-        other: '📦'
+        food: '🍔', transport: '🚗', shopping: '🛍️', bills: '📄',
+        entertainment: '🎬', health: '🏥', salary: '💼', investment: '📈', other: '📦'
     };
     return emojis[cat] || '📦';
 }
 
-// Update sync status display
+// Update sync status
 function updateSyncStatus(msg, status) {
     const el = document.getElementById('syncStatus');
     document.getElementById('syncText').textContent = msg;
