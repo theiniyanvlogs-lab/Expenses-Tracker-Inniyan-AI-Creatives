@@ -148,15 +148,15 @@ function createTransactionHTML(t, type) {
 
 // ✅ FIXED: Wrapper function for delete that works with onclick
 function handleDelete(id) {
-    console.log('Delete clicked for ID:', id);
+    console.log('🗑️ Delete clicked for ID:', id);
     deleteTransaction(id);
 }
 
-// ✅ FIXED: Delete a transaction from Firebase
+// ✅ FIXED: Delete transaction - IMMEDIATE UI UPDATE
 async function deleteTransaction(id) {
-    console.log('Attempting to delete:', id);
+    console.log('Attempting to delete transaction:', id);
     
-    if (!confirm('Delete this transaction?')) {
+    if (!confirm('Are you sure you want to delete this transaction?')) {
         console.log('Delete cancelled by user');
         return;
     }
@@ -168,14 +168,26 @@ async function deleteTransaction(id) {
         // Delete from Firebase
         await db.collection('transactions').doc(id).delete();
         
-        // The onSnapshot listener will automatically update the UI
-        // But we'll also update the status
+        console.log('✅ Deleted from Firebase');
+        
+        // ✅ CRITICAL FIX: Immediately update local array and re-render UI
+        // This ensures the UI updates even if onSnapshot is slow
+        transactions = transactions.filter(t => t.id !== id);
+        renderTransactions(transactions);
+        updateSummary();
+        
+        // Update status
         updateSyncStatus('✅ Transaction deleted!', 'synced');
-        console.log('Transaction deleted successfully');
+        
+        // Reset status after 3 seconds
+        setTimeout(() => {
+            updateSyncStatus('✅ Live synced', 'synced');
+        }, 3000);
         
     } catch (err) {
-        console.error('Error deleting:', err);
+        console.error('❌ Error deleting transaction:', err);
         updateSyncStatus('❌ Delete failed: ' + err.message, 'error');
+        alert('Failed to delete transaction. Please try again.');
     }
 }
 
@@ -219,7 +231,7 @@ function updateSummary() {
     document.getElementById('balance').textContent = `₹${balance.toFixed(2)}`;
 }
 
-// IMPROVED CSV Export
+// ✅ IMPROVED CSV Export - Better Alignment
 function exportToCSV() {
     const incomes = transactions.filter(t => t.type === 'income');
     const expenses = transactions.filter(t => t.type === 'expense');
@@ -293,7 +305,7 @@ function exportToCSV() {
     URL.revokeObjectURL(url);
 }
 
-// FIXED PDF Export - Uses Rs. instead of ₹ symbol
+// ✅ FIXED PDF Export - Uses Rs. instead of ₹ symbol
 function exportToPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -530,4 +542,4 @@ function updateSyncStatus(msg, status) {
     const el = document.getElementById('syncStatus');
     document.getElementById('syncText').textContent = msg;
     el.className = 'sync-status ' + status;
-}
+}s
