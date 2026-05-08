@@ -16,6 +16,7 @@ body {
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
+/* Header */
 .header {
     text-align: center;
     margin-bottom: 30px;
@@ -28,6 +29,7 @@ body {
 .header h1 { font-size: 2.5rem; margin-bottom: 10px; }
 .subtitle { font-size: 1.1rem; opacity: 0.95; }
 
+/* Summary Cards */
 .summary-cards {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -66,6 +68,7 @@ body {
 .card-content h3 { font-size: 0.9rem; color: #666; margin-bottom: 5px; }
 .card-content p { font-size: 1.5rem; font-weight: 700; color: #333; }
 
+/* Form Container */
 .form-container {
     background: #f8f9fa;
     border-radius: 20px;
@@ -110,6 +113,7 @@ body {
 
 .btn-submit:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4); }
 
+/* Filter Container */
 .filter-container {
     display: flex;
     gap: 15px;
@@ -136,23 +140,105 @@ body {
 
 /* Modal Styles */
 .modal {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
 }
+
 .modal-content {
-    background: white; padding: 30px; border-radius: 20px; width: 90%; max-width: 450px; position: relative;
+    background: white;
+    padding: 30px;
+    border-radius: 20px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    animation: modalSlideIn 0.3s ease;
 }
-.close-modal {
-    position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: pointer; color: #666;
+
+@keyframes modalSlideIn {
+    from {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
 }
-.date-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-.hidden { display: none !important; }
+
+.close-modal,
+.close-edit-modal {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 28px;
+    cursor: pointer;
+    color: #999;
+    transition: color 0.2s ease;
+}
+
+.close-modal:hover,
+.close-edit-modal:hover {
+    color: #333;
+}
+
+.modal-content h3 {
+    margin-bottom: 20px;
+    color: #667eea;
+}
+
+.modal-content .form-group {
+    margin-bottom: 15px;
+}
+
+.modal-content label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+    color: #555;
+}
+
+.modal-content input,
+.modal-content select {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 1rem;
+}
+
+.modal-content input:focus,
+.modal-content select:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.hidden {
+    display: none !important;
+}
 
 /* Preview Result */
 .preview-result {
-    background: #f8f9fa; border-radius: 20px; padding: 25px; margin-bottom: 30px; border: 2px dashed #667eea;
+    background: #f8f9fa;
+    border-radius: 20px;
+    padding: 25px;
+    margin-bottom: 30px;
+    border: 2px dashed #667eea;
 }
-.preview-columns .column { background: white; margin-bottom: 15px; }
+
+.preview-columns .column {
+    background: white;
+    margin-bottom: 15px;
+}
 
 /* Two Column Layout */
 .columns-wrapper {
@@ -179,6 +265,7 @@ body {
 .income-column h3 { color: #43e97b; }
 .expense-column h3 { color: #fa709a; }
 
+/* Transaction Item */
 .transaction-item {
     background: white;
     border-radius: 12px;
@@ -203,6 +290,32 @@ body {
 .transaction-item.income .transaction-amount { color: #43e97b; }
 .transaction-item.expense .transaction-amount { color: #fa709a; }
 
+/* Transaction Actions - Edit & Delete */
+.transaction-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-edit {
+    padding: 8px 12px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-edit:hover {
+    transform: scale(1.1);
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
 .btn-delete {
     padding: 8px 12px;
     background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
@@ -210,6 +323,15 @@ body {
     border: none;
     border-radius: 8px;
     cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-delete:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(250, 112, 154, 0.3);
 }
 
 .column-total {
@@ -221,32 +343,56 @@ body {
     color: #333;
 }
 
-/* Export Buttons */
-.export-section {
-    display: flex;
-    gap: 15px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
+/* Action Buttons - CSV, PDF, Backup */
+.action-buttons {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin: 20px 0;
 }
 
-.btn-export, .btn-clear {
-    flex: 1;
-    padding: 15px;
+.btn-action {
+    padding: 14px 16px;
     border: none;
-    border-radius: 10px;
-    font-size: 1rem;
+    border-radius: 12px;
+    font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
-    transition: transform 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.3s ease;
     color: white;
+    min-height: 50px;
 }
 
-.btn-export { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-.btn-export.pdf { background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%); }
-.btn-clear { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.btn-action:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
 
-.btn-export:hover, .btn-clear:hover { transform: translateY(-3px); }
+.export-csv {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
 
+.export-pdf {
+    background: linear-gradient(135deg, #fc4a1a 0%, #f7b733 100%);
+}
+
+.save-backup {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.load-backup {
+    background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+
+.clear-all {
+    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+}
+
+/* Sync Status */
 .sync-status {
     text-align: center;
     padding: 12px;
@@ -255,10 +401,20 @@ body {
     color: #666;
     font-size: 0.9rem;
     margin-bottom: 20px;
+    transition: all 0.3s ease;
 }
-.sync-status.synced { background: #d4edda; color: #155724; }
-.sync-status.error { background: #f8d7da; color: #721c24; }
 
+.sync-status.synced { 
+    background: #d4edda; 
+    color: #155724; 
+}
+
+.sync-status.error { 
+    background: #f8d7da; 
+    color: #721c24; 
+}
+
+/* Footer */
 .app-footer {
     text-align: center;
     padding: 20px;
@@ -269,18 +425,192 @@ body {
     font-weight: 500;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-    .columns-wrapper { grid-template-columns: 1fr; }
-    .filter-container { flex-direction: column; }
-    .export-section { flex-direction: column; }
-    .form-row { grid-template-columns: 1fr; }
-    .date-inputs { grid-template-columns: 1fr; }
+/* Scrollbar */
+.transaction-list { 
+    max-height: 350px; 
+    overflow-y: auto; 
+    padding-right: 5px; 
 }
 
-/* Scrollbar */
-.transaction-list { max-height: 350px; overflow-y: auto; padding-right: 5px; }
-.transaction-list::-webkit-scrollbar { width: 6px; }
-.transaction-list::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-.transaction-list::-webkit-scrollbar-thumb { background: #667eea; border-radius: 10px; }
-.empty-msg { text-align: center; color: #999; padding: 30px 0; font-style: italic; }
+.transaction-list::-webkit-scrollbar { 
+    width: 6px; 
+}
+
+.transaction-list::-webkit-scrollbar-track { 
+    background: #f1f1f1; 
+    border-radius: 10px; 
+}
+
+.transaction-list::-webkit-scrollbar-thumb { 
+    background: #667eea; 
+    border-radius: 10px; 
+}
+
+.empty-msg { 
+    text-align: center; 
+    color: #999; 
+    padding: 30px 0; 
+    font-style: italic; 
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .container {
+        padding: 20px;
+        border-radius: 20px;
+    }
+    
+    .header h1 {
+        font-size: 2rem;
+    }
+    
+    .summary-cards {
+        grid-template-columns: 1fr;
+    }
+    
+    .columns-wrapper {
+        grid-template-columns: 1fr;
+    }
+    
+    .filter-container {
+        flex-direction: column;
+    }
+    
+    .action-buttons {
+        grid-template-columns: 1fr;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .date-inputs {
+        grid-template-columns: 1fr;
+    }
+    
+    .modal-content {
+        width: 95%;
+        padding: 20px;
+    }
+    
+    .transaction-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .transaction-amount {
+        margin: 0;
+    }
+    
+    .transaction-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        padding: 10px;
+    }
+    
+    .header h1 {
+        font-size: 1.6rem;
+    }
+    
+    .card-content p {
+        font-size: 1.3rem;
+    }
+    
+    .btn-submit,
+    .btn-action {
+        font-size: 0.9rem;
+        padding: 12px;
+    }
+}
+
+/* Print Styles */
+@media print {
+    body {
+        background: white;
+        padding: 0;
+    }
+    
+    .container {
+        box-shadow: none;
+        border-radius: 0;
+        max-width: 100%;
+    }
+    
+    .btn-submit,
+    .btn-action,
+    .btn-edit,
+    .btn-delete,
+    .filter-container,
+    .form-container {
+        display: none;
+    }
+    
+    .transaction-list {
+        max-height: none;
+        overflow: visible;
+    }
+}
+
+/* Animation Utilities */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.pulse {
+    animation: pulse 2s infinite;
+}
+
+/* Focus States for Accessibility */
+button:focus,
+input:focus,
+select:focus {
+    outline: 2px solid #667eea;
+    outline-offset: 2px;
+}
+
+/* Disabled States */
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+/* Loading State */
+.loading {
+    position: relative;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #667eea;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
