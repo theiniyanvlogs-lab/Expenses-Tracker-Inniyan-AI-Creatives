@@ -198,7 +198,7 @@ async function deleteTransaction(id) {
     }
 }
 
-// ✅ FINAL: Export to CSV with perfect alignment
+// ✅ PERFECT CSV EXPORT - 200% Clear Alignment
 function exportToCSV() {
     const incomes = transactions.filter(t => t.type === 'income');
     const expenses = transactions.filter(t => t.type === 'expense');
@@ -249,7 +249,7 @@ function exportToCSV() {
     URL.revokeObjectURL(url);
 }
 
-// ✅ FINAL: Export to PDF with perfect alignment - numbers stay inside borders
+// ✅ PERFECT PDF EXPORT - 200% Clear Alignment - Numbers Stay Inside Borders
 function exportToPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -362,7 +362,7 @@ function exportToPDF() {
     doc.text(`Total Expenses: ₹${expenseTotal.toFixed(2)}`, 14, currentY);
     currentY += 15;
 
-    // SUMMARY SECTION - FIXED: Numbers stay inside borders
+    // SUMMARY SECTION - PERFECT ALIGNMENT
     doc.setFontSize(14);
     doc.setTextColor(102, 126, 234);
     doc.text('SUMMARY', 14, currentY);
