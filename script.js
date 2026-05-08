@@ -32,14 +32,11 @@ function setupEventListeners() {
     document.getElementById('searchInput').addEventListener('input', filterAndRender);
     document.getElementById('filterMonth').addEventListener('change', filterAndRender);
     
-    // Export buttons
+    // Export & Backup buttons
     document.getElementById('exportCsvBtn').addEventListener('click', exportToCSV);
     document.getElementById('exportPdfBtn').addEventListener('click', exportToPDF);
-    
-    // Backup buttons
     document.getElementById('saveBackupBtn').addEventListener('click', saveBackup);
     document.getElementById('loadBackupBtn').addEventListener('click', loadBackup);
-    
     document.getElementById('clearBtn').addEventListener('click', clearAllData);
     
     // Modal events
@@ -61,7 +58,7 @@ async function addTransaction(e) {
     const transaction = {
         id: Date.now().toString(),
         userId: userId,
-        description: document.getElementById('description').value,
+        description: document.getElementById('description').value.trim(),
         amount: parseFloat(document.getElementById('amount').value),
         type: document.getElementById('type').value,
         category: document.getElementById('category').value,
@@ -163,33 +160,26 @@ function createTransactionHTML(t, type) {
     `;
 }
 
-// ✅ FIXED: Wrapper function for delete
+// Wrapper function for delete
 function handleDelete(id) {
     deleteTransaction(id);
 }
 
-// ✅ FIXED: Delete transaction - IMMEDIATE UI UPDATE
+// Fixed: Delete transaction - IMMEDIATE UI UPDATE
 async function deleteTransaction(id) {
-    console.log('Attempting to delete transaction:', id);
-    
-    if (!confirm('Are you sure you want to delete this transaction?')) {
-        return;
-    }
+    if (!confirm('Are you sure you want to delete this transaction?')) return;
     
     try {
         updateSyncStatus('🗑️ Deleting...', '');
         await db.collection('transactions').doc(id).delete();
         
-        // CRITICAL FIX: Immediately update local array and re-render UI
+        // Immediately update local array and re-render UI
         transactions = transactions.filter(t => t.id !== id);
         renderTransactions(transactions);
         updateSummary();
         
         updateSyncStatus('✅ Transaction deleted!', 'synced');
-        
-        setTimeout(() => {
-            updateSyncStatus('✅ Live synced', 'synced');
-        }, 3000);
+        setTimeout(() => updateSyncStatus('✅ Live synced', 'synced'), 3000);
         
     } catch (err) {
         console.error('❌ Error deleting transaction:', err);
@@ -198,12 +188,11 @@ async function deleteTransaction(id) {
     }
 }
 
-// ✅ NEW: Open Edit Modal
+// ✅ FIXED: Open Edit Modal
 function openEditModal(id) {
     const transaction = transactions.find(t => t.id === id);
     if (!transaction) return;
     
-    // Populate edit form
     document.getElementById('editId').value = transaction.id;
     document.getElementById('editDescription').value = transaction.description;
     document.getElementById('editAmount').value = transaction.amount;
@@ -211,15 +200,19 @@ function openEditModal(id) {
     document.getElementById('editCategory').value = transaction.category;
     document.getElementById('editDate').value = transaction.date;
     
-    // Show modal
     openModal('editModal');
 }
 
-// ✅ NEW: Save Edited Transaction
+// ✅ FIXED: Save Edited Transaction - WITH ROBUST ERROR HANDLING
 async function saveEditedTransaction() {
     const id = document.getElementById('editId').value;
+    if (!id) {
+        alert('Error: Transaction ID is missing!');
+        return;
+    }
+    
     const updatedData = {
-        description: document.getElementById('editDescription').value,
+        description: document.getElementById('editDescription').value.trim(),
         amount: parseFloat(document.getElementById('editAmount').value),
         type: document.getElementById('editType').value,
         category: document.getElementById('editCategory').value,
@@ -227,11 +220,21 @@ async function saveEditedTransaction() {
         updatedAt: new Date().toISOString()
     };
     
+    // Validate inputs
+    if (!updatedData.description || isNaN(updatedData.amount) || updatedData.amount <= 0) {
+        alert('Please fill in all fields correctly. Amount must be greater than 0.');
+        return;
+    }
+    
     try {
         updateSyncStatus('💾 Saving changes...', '');
-        await db.collection('transactions').doc(id).update(updatedData);
+        console.log('Updating transaction:', id, updatedData);
         
-        // Update local array immediately
+        // Update in Firebase
+        await db.collection('transactions').doc(id).update(updatedData);
+        console.log('✅ Successfully updated in Firebase');
+        
+        // Update local array immediately for instant UI feedback
         const index = transactions.findIndex(t => t.id === id);
         if (index !== -1) {
             transactions[index] = { ...transactions[index], ...updatedData };
@@ -241,15 +244,23 @@ async function saveEditedTransaction() {
         
         closeModal('editModal');
         updateSyncStatus('✅ Transaction updated!', 'synced');
-        
-        setTimeout(() => {
-            updateSyncStatus('✅ Live synced', 'synced');
-        }, 3000);
+        setTimeout(() => updateSyncStatus('✅ Live synced', 'synced'), 3000);
         
     } catch (err) {
         console.error('❌ Error updating transaction:', err);
+        
+        let errorMsg = 'Failed to update transaction.\n\n';
+        if (err.code === 'permission-denied') {
+            errorMsg += 'Permission Error: Firebase rules block updates.\n' +
+                       'Go to Firebase Console → Firestore → Rules → Paste: allow read, write: if true;';
+        } else if (err.code === 'not-found') {
+            errorMsg += 'Transaction not found in database. It may have been deleted already.';
+        } else {
+            errorMsg += err.message;
+        }
+        
+        alert(errorMsg);
         updateSyncStatus('❌ Update failed', 'error');
-        alert('Failed to update transaction.');
     }
 }
 
@@ -272,9 +283,7 @@ function saveBackup() {
     URL.revokeObjectURL(url);
     
     updateSyncStatus('💾 Backup saved!', 'synced');
-    setTimeout(() => {
-        updateSyncStatus('✅ Live synced', 'synced');
-    }, 3000);
+    setTimeout(() => updateSyncStatus('✅ Live synced', 'synced'), 3000);
 }
 
 // ✅ NEW: Load Backup Feature
@@ -311,20 +320,14 @@ function loadBackup() {
                     if (backupData.transactions && backupData.transactions.length > 0) {
                         const batch = db.batch();
                         backupData.transactions.forEach(t => {
-                            // Use a new ID for restored transactions to avoid conflicts
                             const docRef = db.collection('transactions').doc();
-                            batch.set(docRef, {
-                                ...t,
-                                userId: userId
-                            });
+                            batch.set(docRef, { ...t, userId: userId });
                         });
                         await batch.commit();
                     }
                     
                     updateSyncStatus('✅ Backup restored!', 'synced');
-                    setTimeout(() => {
-                        updateSyncStatus('✅ Live synced', 'synced');
-                    }, 3000);
+                    setTimeout(() => updateSyncStatus('✅ Live synced', 'synced'), 3000);
                     
                 } catch (err) {
                     console.error('Error loading backup:', err);
@@ -401,44 +404,27 @@ function exportToCSV() {
     };
 
     let csvRows = [];
-    
     csvRows.push([csvEscape('Expense Tracker Report')]);
     csvRows.push([csvEscape(`Generated: ${new Date().toLocaleDateString('en-IN')}`)]);
     csvRows.push([]);
     
     csvRows.push([csvEscape('INCOME TRANSACTIONS')]);
     csvRows.push([csvEscape('Date'), csvEscape('Description'), csvEscape('Category'), csvEscape('Amount')]);
-    
     incomes.forEach(t => {
-        csvRows.push([
-            csvEscape(t.date),
-            csvEscape(t.description),
-            csvEscape(t.category),
-            csvEscape(`₹${t.amount.toFixed(2)}`)
-        ]);
+        csvRows.push([csvEscape(t.date), csvEscape(t.description), csvEscape(t.category), csvEscape(`₹${t.amount.toFixed(2)}`)]);
     });
-    
     csvRows.push([]);
     csvRows.push([csvEscape(''), csvEscape(''), csvEscape('Total Income'), csvEscape(`₹${incomeTotal.toFixed(2)}`)]);
-    csvRows.push([]); 
-    csvRows.push([]); 
+    csvRows.push([]); csvRows.push([]);
     
     csvRows.push([csvEscape('EXPENSE TRANSACTIONS')]);
     csvRows.push([csvEscape('Date'), csvEscape('Description'), csvEscape('Category'), csvEscape('Amount')]);
-    
     expenses.forEach(t => {
-        csvRows.push([
-            csvEscape(t.date),
-            csvEscape(t.description),
-            csvEscape(t.category),
-            csvEscape(`₹${t.amount.toFixed(2)}`)
-        ]);
+        csvRows.push([csvEscape(t.date), csvEscape(t.description), csvEscape(t.category), csvEscape(`₹${t.amount.toFixed(2)}`)]);
     });
-    
-    csvRows.push([]); 
+    csvRows.push([]);
     csvRows.push([csvEscape(''), csvEscape(''), csvEscape('Total Expenses'), csvEscape(`₹${expenseTotal.toFixed(2)}`)]);
-    csvRows.push([]); 
-    csvRows.push([]); 
+    csvRows.push([]); csvRows.push([]);
     
     csvRows.push([csvEscape('SUMMARY')]);
     csvRows.push([csvEscape('Total Income'), csvEscape(''), csvEscape(''), csvEscape(`₹${incomeTotal.toFixed(2)}`)]);
@@ -447,7 +433,6 @@ function exportToCSV() {
     csvRows.push([csvEscape('Total Transactions'), csvEscape(''), csvEscape(''), csvEscape(transactions.length)]);
 
     const csvContent = csvRows.map(row => row.join(',')).join('\n');
-    
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -471,7 +456,6 @@ function exportToPDF() {
     doc.setFontSize(22);
     doc.setTextColor(102, 126, 234);
     doc.text('Expense Tracker Report', 105, 15, { align: 'center' });
-    
     doc.setFontSize(11);
     doc.setTextColor(100, 100, 100);
     doc.text(`Generated: ${new Date().toLocaleDateString('en-IN')}`, 105, 22, { align: 'center' });
@@ -488,33 +472,14 @@ function exportToPDF() {
         t.date,
         t.description.length > 30 ? t.description.substring(0, 27) + '...' : t.description,
         t.category,
-        `Rs. ${t.amount.toFixed(2)}` // FIXED: Using Rs. instead of ₹
+        `Rs. ${t.amount.toFixed(2)}`
     ]);
 
     doc.autoTable({
-        head: [tableColumn],
-        body: incomeTableRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { 
-            fillColor: [67, 233, 123], 
-            textColor: 255,
-            fontStyle: 'bold',
-            halign: 'center',
-            fontSize: 10
-        },
-        styles: { 
-            fontSize: 9, 
-            cellPadding: 4, 
-            overflow: 'linebreak',
-            lineWidth: 0.1
-        },
-        columnStyles: {
-            0: { cellWidth: 30, halign: 'center' },
-            1: { cellWidth: 70 },
-            2: { cellWidth: 40, halign: 'center' },
-            3: { halign: 'right', fontStyle: 'bold', cellWidth: 36 }
-        },
+        head: [tableColumn], body: incomeTableRows, startY: currentY, theme: 'grid',
+        headStyles: { fillColor: [67, 233, 123], textColor: 255, fontStyle: 'bold', halign: 'center', fontSize: 10 },
+        styles: { fontSize: 9, cellPadding: 4, overflow: 'linebreak', lineWidth: 0.1 },
+        columnStyles: { 0: { cellWidth: 30, halign: 'center' }, 1: { cellWidth: 70 }, 2: { cellWidth: 40, halign: 'center' }, 3: { halign: 'right', fontStyle: 'bold', cellWidth: 36 } },
         margin: { left: 14, right: 14 }
     });
 
@@ -533,33 +498,14 @@ function exportToPDF() {
         t.date,
         t.description.length > 30 ? t.description.substring(0, 27) + '...' : t.description,
         t.category,
-        `Rs. ${t.amount.toFixed(2)}` // FIXED
+        `Rs. ${t.amount.toFixed(2)}`
     ]);
 
     doc.autoTable({
-        head: [tableColumn],
-        body: expenseTableRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { 
-            fillColor: [250, 112, 154], 
-            textColor: 255,
-            fontStyle: 'bold',
-            halign: 'center',
-            fontSize: 10
-        },
-        styles: { 
-            fontSize: 9, 
-            cellPadding: 4, 
-            overflow: 'linebreak',
-            lineWidth: 0.1
-        },
-        columnStyles: {
-            0: { cellWidth: 30, halign: 'center' },
-            1: { cellWidth: 70 },
-            2: { cellWidth: 40, halign: 'center' },
-            3: { halign: 'right', fontStyle: 'bold', cellWidth: 36 }
-        },
+        head: [tableColumn], body: expenseTableRows, startY: currentY, theme: 'grid',
+        headStyles: { fillColor: [250, 112, 154], textColor: 255, fontStyle: 'bold', halign: 'center', fontSize: 10 },
+        styles: { fontSize: 9, cellPadding: 4, overflow: 'linebreak', lineWidth: 0.1 },
+        columnStyles: { 0: { cellWidth: 30, halign: 'center' }, 1: { cellWidth: 70 }, 2: { cellWidth: 40, halign: 'center' }, 3: { halign: 'right', fontStyle: 'bold', cellWidth: 36 } },
         margin: { left: 14, right: 14 }
     });
 
@@ -582,35 +528,10 @@ function exportToPDF() {
     ];
 
     doc.autoTable({
-        body: summaryData,
-        startY: currentY,
-        theme: 'grid',
-        styles: { 
-            fontSize: 10, 
-            cellPadding: 6,
-            halign: 'left',
-            lineWidth: 0.2,
-            fillColor: [255, 255, 255],
-            overflow: 'linebreak'
-        },
-        columnStyles: {
-            0: { 
-                fontStyle: 'bold', 
-                cellWidth: 95,
-                fillColor: [245, 248, 255],
-                halign: 'left',
-                textColor: [50, 50, 50]
-            },
-            1: { 
-                fontStyle: 'bold', 
-                halign: 'right', 
-                cellWidth: 65,
-                fillColor: [245, 248, 255],
-                textColor: [50, 50, 50]
-            }
-        },
-        margin: { left: 14, right: 14 },
-        tableWidth: 155
+        body: summaryData, startY: currentY, theme: 'grid',
+        styles: { fontSize: 10, cellPadding: 6, halign: 'left', lineWidth: 0.2, fillColor: [255, 255, 255], overflow: 'linebreak' },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 95, fillColor: [245, 248, 255], halign: 'left', textColor: [50, 50, 50] }, 1: { fontStyle: 'bold', halign: 'right', cellWidth: 65, fillColor: [245, 248, 255], textColor: [50, 50, 50] } },
+        margin: { left: 14, right: 14 }, tableWidth: 155
     });
 
     const pageCount = doc.internal.getNumberOfPages();
@@ -632,13 +553,11 @@ function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 function generateDatePreview() {
     const from = document.getElementById('fromDate').value;
     const to = document.getElementById('toDate').value;
-    
     if (!from || !to) { alert('Please select both dates'); return; }
 
     const filtered = transactions.filter(t => t.date >= from && t.date <= to);
     const resultDiv = document.getElementById('previewResult');
     resultDiv.classList.remove('hidden');
-    
     resultDiv.innerHTML = `<h3 style="text-align:center;margin-bottom:20px;color:#667eea;">📅 Preview: ${formatDate(from)} to ${formatDate(to)}</h3>`;
     
     const tempDiv = document.createElement('div');
