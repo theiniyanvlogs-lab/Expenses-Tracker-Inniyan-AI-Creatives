@@ -145,11 +145,23 @@
             </div>
         </div>
 
-        <!-- Export Section -->
-        <div class="export-section">
-            <button id="exportCsvBtn" class="btn-export">📥 Export CSV</button>
-            <button id="exportPdfBtn" class="btn-export pdf">📄 Export PDF</button>
-            <button id="clearBtn" class="btn-clear">🗑️ Clear All Data</button>
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            <button id="exportCsvBtn" class="btn-action export-csv">
+                <i class="fas fa-file-csv"></i> Export CSV
+            </button>
+            <button id="exportPdfBtn" class="btn-action export-pdf">
+                <i class="fas fa-file-pdf"></i> Export PDF
+            </button>
+            <button id="saveBackupBtn" class="btn-action save-backup">
+                <i class="fas fa-save"></i> Save Backup
+            </button>
+            <button id="loadBackupBtn" class="btn-action load-backup">
+                <i class="fas fa-upload"></i> Load Backup
+            </button>
+            <button id="clearBtn" class="btn-action clear-all">
+                <i class="fas fa-trash-alt"></i> Clear All
+            </button>
         </div>
 
         <!-- Sync Status -->
@@ -161,6 +173,59 @@
         <footer class="app-footer">
             Powered by @IAC
         </footer>
+    </div>
+
+    <!-- Edit Transaction Modal -->
+    <div id="editModal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-edit-modal">&times;</span>
+            <h3>✏️ Edit Transaction</h3>
+            <form id="editForm">
+                <input type="hidden" id="editId">
+                
+                <div class="form-group">
+                    <label>Description</label>
+                    <input type="text" id="editDescription" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Amount (₹)</label>
+                    <input type="number" id="editAmount" step="0.01" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Type</label>
+                    <select id="editType" required>
+                        <option value="income">Income</option>
+                        <option value="expense">Expense</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="editCategory" required>
+                        <option value="food">🍔 Food</option>
+                        <option value="transport">🚗 Transport</option>
+                        <option value="shopping">🛍️ Shopping</option>
+                        <option value="bills">📄 Bills</option>
+                        <option value="entertainment">🎬 Entertainment</option>
+                        <option value="health">🏥 Health</option>
+                        <option value="salary">💼 Salary</option>
+                        <option value="investment">📈 Investment</option>
+                        <option value="other">📦 Other</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" id="editDate" required>
+                </div>
+                
+                <button type="button" id="saveEditBtn" class="btn-submit">
+                    💾 Save Changes
+                </button>
+            </form>
+        </div>
     </div>
 
     <!-- Firebase SDK -->
