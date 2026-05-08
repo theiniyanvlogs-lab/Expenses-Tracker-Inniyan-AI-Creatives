@@ -131,7 +131,7 @@ function renderTransactions(data) {
 // Create HTML for a single transaction item
 function createTransactionHTML(t, type) {
     return `
-        <div class="transaction-item ${type}">
+        <div class="transaction-item ${type}" data-id="${t.id}">
             <div class="transaction-info">
                 <h4>${t.description}</h4>
                 <p>📅 ${formatDate(t.date)} • ${getCategoryEmoji(t.category)} ${t.category}</p>
@@ -139,11 +139,44 @@ function createTransactionHTML(t, type) {
             <div class="transaction-amount">
                 ${type === 'income' ? '+' : '-'}₹${t.amount.toFixed(2)}
             </div>
-            <button class="btn-delete" onclick="deleteTransaction('${t.id}')">
+            <button class="btn-delete" onclick="handleDelete('${t.id}')">
                 <i class="fas fa-trash"></i>
             </button>
         </div>
     `;
+}
+
+// ✅ FIXED: Wrapper function for delete that works with onclick
+function handleDelete(id) {
+    console.log('Delete clicked for ID:', id);
+    deleteTransaction(id);
+}
+
+// ✅ FIXED: Delete a transaction from Firebase
+async function deleteTransaction(id) {
+    console.log('Attempting to delete:', id);
+    
+    if (!confirm('Delete this transaction?')) {
+        console.log('Delete cancelled by user');
+        return;
+    }
+    
+    try {
+        // Show deleting status
+        updateSyncStatus('🗑️ Deleting...', '');
+        
+        // Delete from Firebase
+        await db.collection('transactions').doc(id).delete();
+        
+        // The onSnapshot listener will automatically update the UI
+        // But we'll also update the status
+        updateSyncStatus('✅ Transaction deleted!', 'synced');
+        console.log('Transaction deleted successfully');
+        
+    } catch (err) {
+        console.error('Error deleting:', err);
+        updateSyncStatus('❌ Delete failed: ' + err.message, 'error');
+    }
 }
 
 // Filter and render transactions
@@ -186,19 +219,7 @@ function updateSummary() {
     document.getElementById('balance').textContent = `₹${balance.toFixed(2)}`;
 }
 
-// Delete a transaction
-async function deleteTransaction(id) {
-    if (!confirm('Delete this transaction?')) return;
-    try {
-        await db.collection('transactions').doc(id).delete();
-        updateSyncStatus('✅ Deleted', 'synced');
-    } catch (err) {
-        console.error('Error deleting:', err);
-        updateSyncStatus('❌ Delete failed', 'error');
-    }
-}
-
-// ✅ IMPROVED CSV Export - Better Alignment & Structure
+// IMPROVED CSV Export
 function exportToCSV() {
     const incomes = transactions.filter(t => t.type === 'income');
     const expenses = transactions.filter(t => t.type === 'expense');
@@ -206,7 +227,6 @@ function exportToCSV() {
     const expenseTotal = expenses.reduce((sum, t) => sum + t.amount, 0);
     const balance = incomeTotal - expenseTotal;
 
-    // Helper to escape CSV fields
     const csvEscape = (val) => {
         if (val === null || val === undefined) return '';
         const str = String(val);
@@ -218,12 +238,10 @@ function exportToCSV() {
 
     let csvRows = [];
     
-    // 1. Header Info
     csvRows.push([csvEscape('Expense Tracker Report')]);
     csvRows.push([csvEscape(`Generated: ${new Date().toLocaleDateString('en-IN')}`)]);
-    csvRows.push([]); // Empty line
+    csvRows.push([]);
     
-    // 2. Income Section
     csvRows.push([csvEscape('INCOME TRANSACTIONS')]);
     csvRows.push([csvEscape('Date'), csvEscape('Description'), csvEscape('Category'), csvEscape('Amount')]);
     
@@ -236,12 +254,11 @@ function exportToCSV() {
         ]);
     });
     
-    csvRows.push([]); // Empty line
+    csvRows.push([]);
     csvRows.push([csvEscape(''), csvEscape(''), csvEscape('Total Income'), csvEscape(`₹${incomeTotal.toFixed(2)}`)]);
     csvRows.push([]); 
     csvRows.push([]); 
     
-    // 3. Expense Section
     csvRows.push([csvEscape('EXPENSE TRANSACTIONS')]);
     csvRows.push([csvEscape('Date'), csvEscape('Description'), csvEscape('Category'), csvEscape('Amount')]);
     
@@ -259,14 +276,12 @@ function exportToCSV() {
     csvRows.push([]); 
     csvRows.push([]); 
     
-    // 4. Summary Section
     csvRows.push([csvEscape('SUMMARY')]);
     csvRows.push([csvEscape('Total Income'), csvEscape(''), csvEscape(''), csvEscape(`₹${incomeTotal.toFixed(2)}`)]);
     csvRows.push([csvEscape('Total Expenses'), csvEscape(''), csvEscape(''), csvEscape(`₹${expenseTotal.toFixed(2)}`)]);
     csvRows.push([csvEscape('Balance'), csvEscape(''), csvEscape(''), csvEscape(`₹${balance.toFixed(2)}`)]);
     csvRows.push([csvEscape('Total Transactions'), csvEscape(''), csvEscape(''), csvEscape(transactions.length)]);
 
-    // Convert array of arrays to CSV string
     const csvContent = csvRows.map(row => row.join(',')).join('\n');
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -278,7 +293,7 @@ function exportToCSV() {
     URL.revokeObjectURL(url);
 }
 
-// ✅ FIXED PDF Export - Replaced ₹ with Rs. to fix alignment/symbol issue
+// FIXED PDF Export - Uses Rs. instead of ₹ symbol
 function exportToPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -289,7 +304,6 @@ function exportToPDF() {
     const expenseTotal = expenses.reduce((sum, t) => sum + t.amount, 0);
     const balance = incomeTotal - expenseTotal;
 
-    // Title
     doc.setFontSize(22);
     doc.setTextColor(102, 126, 234);
     doc.text('Expense Tracker Report', 105, 15, { align: 'center' });
@@ -300,7 +314,6 @@ function exportToPDF() {
 
     let currentY = 35;
 
-    // INCOME SECTION
     doc.setFontSize(14);
     doc.setTextColor(67, 233, 123);
     doc.text('INCOME TRANSACTIONS', 14, currentY);
@@ -311,7 +324,7 @@ function exportToPDF() {
         t.date,
         t.description.length > 30 ? t.description.substring(0, 27) + '...' : t.description,
         t.category,
-        `Rs. ${t.amount.toFixed(2)}`  // FIXED: Changed ₹ to Rs.
+        `Rs. ${t.amount.toFixed(2)}`
     ]);
 
     doc.autoTable({
@@ -344,10 +357,9 @@ function exportToPDF() {
     currentY = doc.lastAutoTable.finalY + 6;
     doc.setFontSize(11);
     doc.setTextColor(67, 233, 123);
-    doc.text(`Total Income: Rs. ${incomeTotal.toFixed(2)}`, 14, currentY); // FIXED
+    doc.text(`Total Income: Rs. ${incomeTotal.toFixed(2)}`, 14, currentY);
     currentY += 15;
 
-    // EXPENSE SECTION
     doc.setFontSize(14);
     doc.setTextColor(250, 112, 154);
     doc.text('EXPENSE TRANSACTIONS', 14, currentY);
@@ -357,7 +369,7 @@ function exportToPDF() {
         t.date,
         t.description.length > 30 ? t.description.substring(0, 27) + '...' : t.description,
         t.category,
-        `Rs. ${t.amount.toFixed(2)}` // FIXED
+        `Rs. ${t.amount.toFixed(2)}`
     ]);
 
     doc.autoTable({
@@ -390,19 +402,18 @@ function exportToPDF() {
     currentY = doc.lastAutoTable.finalY + 6;
     doc.setFontSize(11);
     doc.setTextColor(250, 112, 154);
-    doc.text(`Total Expenses: Rs. ${expenseTotal.toFixed(2)}`, 14, currentY); // FIXED
+    doc.text(`Total Expenses: Rs. ${expenseTotal.toFixed(2)}`, 14, currentY);
     currentY += 15;
 
-    // SUMMARY SECTION
     doc.setFontSize(14);
     doc.setTextColor(102, 126, 234);
     doc.text('SUMMARY', 14, currentY);
     currentY += 8;
     
     const summaryData = [
-        ['Total Income', `Rs. ${incomeTotal.toFixed(2)}`], // FIXED
-        ['Total Expenses', `Rs. ${expenseTotal.toFixed(2)}`], // FIXED
-        ['Balance', `Rs. ${balance.toFixed(2)}`], // FIXED
+        ['Total Income', `Rs. ${incomeTotal.toFixed(2)}`],
+        ['Total Expenses', `Rs. ${expenseTotal.toFixed(2)}`],
+        ['Balance', `Rs. ${balance.toFixed(2)}`],
         ['Total Transactions', `${transactions.length}`]
     ];
 
@@ -438,7 +449,6 @@ function exportToPDF() {
         tableWidth: 155
     });
 
-    // Footer
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
@@ -488,7 +498,7 @@ function generateDatePreview() {
 
 // Clear all data
 async function clearAllData() {
-    if (!confirm('⚠️ Delete ALL transactions?')) return;
+    if (!confirm('⚠️ Delete ALL transactions? This cannot be undone!')) return;
     try {
         const snapshot = await db.collection('transactions').where('userId', '==', userId).get();
         const batch = db.batch();
