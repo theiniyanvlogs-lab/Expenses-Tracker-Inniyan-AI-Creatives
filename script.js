@@ -198,7 +198,7 @@ async function deleteTransaction(id) {
     }
 }
 
-// ✅ CSV Export
+// ✅ IMPROVED CSV Export - Better Alignment & Structure
 function exportToCSV() {
     const incomes = transactions.filter(t => t.type === 'income');
     const expenses = transactions.filter(t => t.type === 'expense');
@@ -206,37 +206,69 @@ function exportToCSV() {
     const expenseTotal = expenses.reduce((sum, t) => sum + t.amount, 0);
     const balance = incomeTotal - expenseTotal;
 
-    let csv = [];
-    
-    csv.push('INCOME TRANSACTIONS');
-    csv.push('Date,Description,Category,Amount');
-    incomes.forEach(t => {
-        const desc = t.description.replace(/"/g, '""').replace(/\n/g, ' ');
-        csv.push(`${t.date},"${desc}",${t.category},${t.amount.toFixed(2)}`);
-    });
-    csv.push('');
-    csv.push(`TOTAL INCOME,,,₹${incomeTotal.toFixed(2)}`);
-    csv.push('');
-    csv.push('');
-    
-    csv.push('EXPENSE TRANSACTIONS');
-    csv.push('Date,Description,Category,Amount');
-    expenses.forEach(t => {
-        const desc = t.description.replace(/"/g, '""').replace(/\n/g, ' ');
-        csv.push(`${t.date},"${desc}",${t.category},${t.amount.toFixed(2)}`);
-    });
-    csv.push('');
-    csv.push(`TOTAL EXPENSES,,,₹${expenseTotal.toFixed(2)}`);
-    csv.push('');
-    csv.push('');
-    
-    csv.push('SUMMARY');
-    csv.push(`Total Income,₹${incomeTotal.toFixed(2)}`);
-    csv.push(`Total Expenses,₹${expenseTotal.toFixed(2)}`);
-    csv.push(`Balance,₹${balance.toFixed(2)}`);
-    csv.push(`Total Transactions,${transactions.length}`);
+    // Helper to escape CSV fields
+    const csvEscape = (val) => {
+        if (val === null || val === undefined) return '';
+        const str = String(val);
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+    };
 
-    const csvContent = csv.join('\n');
+    let csvRows = [];
+    
+    // 1. Header Info
+    csvRows.push([csvEscape('Expense Tracker Report')]);
+    csvRows.push([csvEscape(`Generated: ${new Date().toLocaleDateString('en-IN')}`)]);
+    csvRows.push([]); // Empty line
+    
+    // 2. Income Section
+    csvRows.push([csvEscape('INCOME TRANSACTIONS')]);
+    csvRows.push([csvEscape('Date'), csvEscape('Description'), csvEscape('Category'), csvEscape('Amount')]);
+    
+    incomes.forEach(t => {
+        csvRows.push([
+            csvEscape(t.date),
+            csvEscape(t.description),
+            csvEscape(t.category),
+            csvEscape(`₹${t.amount.toFixed(2)}`)
+        ]);
+    });
+    
+    csvRows.push([]); // Empty line
+    csvRows.push([csvEscape(''), csvEscape(''), csvEscape('Total Income'), csvEscape(`₹${incomeTotal.toFixed(2)}`)]);
+    csvRows.push([]); 
+    csvRows.push([]); 
+    
+    // 3. Expense Section
+    csvRows.push([csvEscape('EXPENSE TRANSACTIONS')]);
+    csvRows.push([csvEscape('Date'), csvEscape('Description'), csvEscape('Category'), csvEscape('Amount')]);
+    
+    expenses.forEach(t => {
+        csvRows.push([
+            csvEscape(t.date),
+            csvEscape(t.description),
+            csvEscape(t.category),
+            csvEscape(`₹${t.amount.toFixed(2)}`)
+        ]);
+    });
+    
+    csvRows.push([]); 
+    csvRows.push([csvEscape(''), csvEscape(''), csvEscape('Total Expenses'), csvEscape(`₹${expenseTotal.toFixed(2)}`)]);
+    csvRows.push([]); 
+    csvRows.push([]); 
+    
+    // 4. Summary Section
+    csvRows.push([csvEscape('SUMMARY')]);
+    csvRows.push([csvEscape('Total Income'), csvEscape(''), csvEscape(''), csvEscape(`₹${incomeTotal.toFixed(2)}`)]);
+    csvRows.push([csvEscape('Total Expenses'), csvEscape(''), csvEscape(''), csvEscape(`₹${expenseTotal.toFixed(2)}`)]);
+    csvRows.push([csvEscape('Balance'), csvEscape(''), csvEscape(''), csvEscape(`₹${balance.toFixed(2)}`)]);
+    csvRows.push([csvEscape('Total Transactions'), csvEscape(''), csvEscape(''), csvEscape(transactions.length)]);
+
+    // Convert array of arrays to CSV string
+    const csvContent = csvRows.map(row => row.join(',')).join('\n');
+    
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
