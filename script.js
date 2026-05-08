@@ -198,7 +198,7 @@ async function deleteTransaction(id) {
     }
 }
 
-// ✅ FIXED: Export to CSV with proper alignment
+// ✅ FINAL: Export to CSV with perfect alignment
 function exportToCSV() {
     const incomes = transactions.filter(t => t.type === 'income');
     const expenses = transactions.filter(t => t.type === 'expense');
@@ -249,7 +249,7 @@ function exportToCSV() {
     URL.revokeObjectURL(url);
 }
 
-// ✅ FIXED: Export to PDF with proper alignment and formatting
+// ✅ FINAL: Export to PDF with perfect alignment - numbers stay inside borders
 function exportToPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -296,7 +296,12 @@ function exportToPDF() {
             fontStyle: 'bold',
             halign: 'center'
         },
-        styles: { fontSize: 9, cellPadding: 3, overflow: 'linebreak' },
+        styles: { 
+            fontSize: 9, 
+            cellPadding: 3, 
+            overflow: 'linebreak',
+            lineWidth: 0.1
+        },
         columnStyles: {
             0: { cellWidth: 28, halign: 'center' },
             1: { cellWidth: 75 },
@@ -336,7 +341,12 @@ function exportToPDF() {
             fontStyle: 'bold',
             halign: 'center'
         },
-        styles: { fontSize: 9, cellPadding: 3, overflow: 'linebreak' },
+        styles: { 
+            fontSize: 9, 
+            cellPadding: 3, 
+            overflow: 'linebreak',
+            lineWidth: 0.1
+        },
         columnStyles: {
             0: { cellWidth: 28, halign: 'center' },
             1: { cellWidth: 75 },
@@ -352,7 +362,7 @@ function exportToPDF() {
     doc.text(`Total Expenses: ₹${expenseTotal.toFixed(2)}`, 14, currentY);
     currentY += 15;
 
-    // SUMMARY SECTION
+    // SUMMARY SECTION - FIXED: Numbers stay inside borders
     doc.setFontSize(14);
     doc.setTextColor(102, 126, 234);
     doc.text('SUMMARY', 14, currentY);
@@ -369,15 +379,34 @@ function exportToPDF() {
         body: summaryData,
         startY: currentY,
         theme: 'grid',
-        styles: { fontSize: 10, cellPadding: 5, halign: 'left' },
-        columnStyles: {
-            0: { fontStyle: 'bold', cellWidth: 95, fillColor: [248, 249, 250] },
-            1: { fontStyle: 'bold', halign: 'right', cellWidth: 60, fillColor: [248, 249, 250] }
+        styles: { 
+            fontSize: 10, 
+            cellPadding: 6,
+            halign: 'left',
+            lineWidth: 0.2,
+            fillColor: [255, 255, 255]
         },
-        margin: { left: 14, right: 14 }
+        columnStyles: {
+            0: { 
+                fontStyle: 'bold', 
+                cellWidth: 100,
+                fillColor: [245, 248, 255],
+                halign: 'left',
+                textColor: [50, 50, 50]
+            },
+            1: { 
+                fontStyle: 'bold', 
+                halign: 'right', 
+                cellWidth: 70,
+                fillColor: [245, 248, 255],
+                textColor: [50, 50, 50]
+            }
+        },
+        margin: { left: 14, right: 14 },
+        tableWidth: 'auto'
     });
 
-    // Footer
+    // Footer with Powered by @IAC
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
