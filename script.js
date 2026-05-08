@@ -31,13 +31,25 @@ function setupEventListeners() {
     document.getElementById('transactionForm').addEventListener('submit', addTransaction);
     document.getElementById('searchInput').addEventListener('input', filterAndRender);
     document.getElementById('filterMonth').addEventListener('change', filterAndRender);
+    
+    // Export buttons
     document.getElementById('exportCsvBtn').addEventListener('click', exportToCSV);
     document.getElementById('exportPdfBtn').addEventListener('click', exportToPDF);
+    
+    // Backup buttons
+    document.getElementById('saveBackupBtn').addEventListener('click', saveBackup);
+    document.getElementById('loadBackupBtn').addEventListener('click', loadBackup);
+    
     document.getElementById('clearBtn').addEventListener('click', clearAllData);
     
+    // Modal events
     document.getElementById('previewBtn').addEventListener('click', () => openModal('dateRangeModal'));
     document.querySelector('.close-modal').addEventListener('click', () => closeModal('dateRangeModal'));
     document.getElementById('generatePreviewBtn').addEventListener('click', generateDatePreview);
+    
+    // Edit modal events
+    document.getElementById('saveEditBtn').addEventListener('click', saveEditedTransaction);
+    document.querySelector('.close-edit-modal').addEventListener('click', () => closeModal('editModal'));
     
     syncTransactions();
 }
@@ -139,16 +151,20 @@ function createTransactionHTML(t, type) {
             <div class="transaction-amount">
                 ${type === 'income' ? '+' : '-'}₹${t.amount.toFixed(2)}
             </div>
-            <button class="btn-delete" onclick="handleDelete('${t.id}')">
-                <i class="fas fa-trash"></i>
-            </button>
+            <div class="transaction-actions">
+                <button class="btn-edit" onclick="openEditModal('${t.id}')">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn-delete" onclick="handleDelete('${t.id}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
         </div>
     `;
 }
 
-// ✅ FIXED: Wrapper function for delete that works with onclick
+// ✅ FIXED: Wrapper function for delete
 function handleDelete(id) {
-    console.log('🗑️ Delete clicked for ID:', id);
     deleteTransaction(id);
 }
 
@@ -157,38 +173,174 @@ async function deleteTransaction(id) {
     console.log('Attempting to delete transaction:', id);
     
     if (!confirm('Are you sure you want to delete this transaction?')) {
-        console.log('Delete cancelled by user');
         return;
     }
     
     try {
-        // Show deleting status
         updateSyncStatus('🗑️ Deleting...', '');
-        
-        // Delete from Firebase
         await db.collection('transactions').doc(id).delete();
         
-        console.log('✅ Deleted from Firebase');
-        
-        // ✅ CRITICAL FIX: Immediately update local array and re-render UI
-        // This ensures the UI updates even if onSnapshot is slow
+        // CRITICAL FIX: Immediately update local array and re-render UI
         transactions = transactions.filter(t => t.id !== id);
         renderTransactions(transactions);
         updateSummary();
         
-        // Update status
         updateSyncStatus('✅ Transaction deleted!', 'synced');
         
-        // Reset status after 3 seconds
         setTimeout(() => {
             updateSyncStatus('✅ Live synced', 'synced');
         }, 3000);
         
     } catch (err) {
         console.error('❌ Error deleting transaction:', err);
-        updateSyncStatus('❌ Delete failed: ' + err.message, 'error');
+        updateSyncStatus('❌ Delete failed', 'error');
         alert('Failed to delete transaction. Please try again.');
     }
+}
+
+// ✅ NEW: Open Edit Modal
+function openEditModal(id) {
+    const transaction = transactions.find(t => t.id === id);
+    if (!transaction) return;
+    
+    // Populate edit form
+    document.getElementById('editId').value = transaction.id;
+    document.getElementById('editDescription').value = transaction.description;
+    document.getElementById('editAmount').value = transaction.amount;
+    document.getElementById('editType').value = transaction.type;
+    document.getElementById('editCategory').value = transaction.category;
+    document.getElementById('editDate').value = transaction.date;
+    
+    // Show modal
+    openModal('editModal');
+}
+
+// ✅ NEW: Save Edited Transaction
+async function saveEditedTransaction() {
+    const id = document.getElementById('editId').value;
+    const updatedData = {
+        description: document.getElementById('editDescription').value,
+        amount: parseFloat(document.getElementById('editAmount').value),
+        type: document.getElementById('editType').value,
+        category: document.getElementById('editCategory').value,
+        date: document.getElementById('editDate').value,
+        updatedAt: new Date().toISOString()
+    };
+    
+    try {
+        updateSyncStatus('💾 Saving changes...', '');
+        await db.collection('transactions').doc(id).update(updatedData);
+        
+        // Update local array immediately
+        const index = transactions.findIndex(t => t.id === id);
+        if (index !== -1) {
+            transactions[index] = { ...transactions[index], ...updatedData };
+            renderTransactions(transactions);
+            updateSummary();
+        }
+        
+        closeModal('editModal');
+        updateSyncStatus('✅ Transaction updated!', 'synced');
+        
+        setTimeout(() => {
+            updateSyncStatus('✅ Live synced', 'synced');
+        }, 3000);
+        
+    } catch (err) {
+        console.error('❌ Error updating transaction:', err);
+        updateSyncStatus('❌ Update failed', 'error');
+        alert('Failed to update transaction.');
+    }
+}
+
+// ✅ NEW: Save Backup Feature
+function saveBackup() {
+    const backupData = {
+        exportDate: new Date().toISOString(),
+        userId: userId,
+        totalTransactions: transactions.length,
+        transactions: transactions
+    };
+    
+    const backupJSON = JSON.stringify(backupData, null, 2);
+    const blob = new Blob([backupJSON], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `expense_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    updateSyncStatus('💾 Backup saved!', 'synced');
+    setTimeout(() => {
+        updateSyncStatus('✅ Live synced', 'synced');
+    }, 3000);
+}
+
+// ✅ NEW: Load Backup Feature
+function loadBackup() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        if (!confirm('⚠️ This will replace all current transactions with the backup data. Continue?')) {
+            return;
+        }
+        
+        try {
+            updateSyncStatus('📂 Loading backup...', '');
+            
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    const backupData = JSON.parse(event.target.result);
+                    
+                    // Clear current data in Firebase
+                    const snapshot = await db.collection('transactions')
+                        .where('userId', '==', userId)
+                        .get();
+                    const batch = db.batch();
+                    snapshot.forEach(doc => batch.delete(doc.ref));
+                    await batch.commit();
+                    
+                    // Restore backup data to Firebase
+                    if (backupData.transactions && backupData.transactions.length > 0) {
+                        const batch = db.batch();
+                        backupData.transactions.forEach(t => {
+                            // Use a new ID for restored transactions to avoid conflicts
+                            const docRef = db.collection('transactions').doc();
+                            batch.set(docRef, {
+                                ...t,
+                                userId: userId
+                            });
+                        });
+                        await batch.commit();
+                    }
+                    
+                    updateSyncStatus('✅ Backup restored!', 'synced');
+                    setTimeout(() => {
+                        updateSyncStatus('✅ Live synced', 'synced');
+                    }, 3000);
+                    
+                } catch (err) {
+                    console.error('Error loading backup:', err);
+                    alert('❌ Invalid backup file!');
+                    updateSyncStatus('❌ Load failed', 'error');
+                }
+            };
+            reader.readAsText(file);
+            
+        } catch (err) {
+            console.error('Error loading backup:', err);
+            updateSyncStatus('❌ Load failed', 'error');
+        }
+    };
+    
+    input.click();
 }
 
 // Filter and render transactions
@@ -231,7 +383,7 @@ function updateSummary() {
     document.getElementById('balance').textContent = `₹${balance.toFixed(2)}`;
 }
 
-// ✅ IMPROVED CSV Export - Better Alignment
+// ✅ IMPROVED CSV Export
 function exportToCSV() {
     const incomes = transactions.filter(t => t.type === 'income');
     const expenses = transactions.filter(t => t.type === 'expense');
@@ -305,7 +457,7 @@ function exportToCSV() {
     URL.revokeObjectURL(url);
 }
 
-// ✅ FIXED PDF Export - Uses Rs. instead of ₹ symbol
+// ✅ FIXED PDF Export - Uses Rs. to fix alignment issues
 function exportToPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -336,7 +488,7 @@ function exportToPDF() {
         t.date,
         t.description.length > 30 ? t.description.substring(0, 27) + '...' : t.description,
         t.category,
-        `Rs. ${t.amount.toFixed(2)}`
+        `Rs. ${t.amount.toFixed(2)}` // FIXED: Using Rs. instead of ₹
     ]);
 
     doc.autoTable({
@@ -381,7 +533,7 @@ function exportToPDF() {
         t.date,
         t.description.length > 30 ? t.description.substring(0, 27) + '...' : t.description,
         t.category,
-        `Rs. ${t.amount.toFixed(2)}`
+        `Rs. ${t.amount.toFixed(2)}` // FIXED
     ]);
 
     doc.autoTable({
@@ -542,4 +694,4 @@ function updateSyncStatus(msg, status) {
     const el = document.getElementById('syncStatus');
     document.getElementById('syncText').textContent = msg;
     el.className = 'sync-status ' + status;
-}s
+}
