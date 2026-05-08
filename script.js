@@ -10,14 +10,15 @@ document.addEventListener('DOMContentLoaded', () => {
     setDefaultDate();
 });
 
-// Generate unique user ID for multi-device sync
+// Replace the generateUserId() function with this:
+
 function generateUserId() {
-    let storedId = localStorage.getItem('expenseTrackerUserId');
-    if (!storedId) {
-        storedId = 'user_' + Math.random().toString(36).substr(2, 9);
-        localStorage.setItem('expenseTrackerUserId', storedId);
-    }
-    userId = storedId;
+    // FIXED USER ID - Same on all devices
+    userId = 'user_shared_12345';
+    
+    // Optional: Also save to localStorage for consistency
+    localStorage.setItem('expenseTrackerUserId', userId);
+    
     console.log('User ID:', userId);
 }
 
