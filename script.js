@@ -12,14 +12,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Replace the generateUserId() function with this:
 
+// NEW CODE (Replace with this):
 function generateUserId() {
-    // FIXED USER ID - Same on all devices
-    userId = 'user_shared_12345';
-    
-    // Optional: Also save to localStorage for consistency
+    // Use fixed ID for all devices
+    userId = 'user_shared_expenses';
     localStorage.setItem('expenseTrackerUserId', userId);
-    
-    console.log('User ID:', userId);
+    console.log('✅ User ID:', userId);
 }
 
 // Set default date to today
