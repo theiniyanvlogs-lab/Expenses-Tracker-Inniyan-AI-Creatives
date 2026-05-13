@@ -90,7 +90,9 @@ async function addTransaction(e) {
 
     try {
 
-        const docRef = await db.collection('transactions').add(transaction);
+        const docRef =
+            await db.collection('transactions')
+            .add(transaction);
 
         await db.collection('transactions')
             .doc(docRef.id)
@@ -118,7 +120,8 @@ async function loadTransactions() {
 
     try {
 
-        const snapshot = await db.collection('transactions')
+        const snapshot =
+            await db.collection('transactions')
             .orderBy('date', 'desc')
             .get();
 
@@ -163,29 +166,45 @@ function syncTransactions() {
 
 function renderTransactions(data) {
 
-    const incomeList = document.getElementById('incomeList');
+    const incomeList =
+        document.getElementById('incomeList');
 
-    const expenseList = document.getElementById('expenseList');
+    const expenseList =
+        document.getElementById('expenseList');
 
-    const incomeTotalEl = document.getElementById('incomeTotal');
+    const incomeTotalEl =
+        document.getElementById('incomeTotal');
 
-    const expenseTotalEl = document.getElementById('expenseTotal');
+    const expenseTotalEl =
+        document.getElementById('expenseTotal');
 
-    const incomes = data.filter(t => t.type === 'income');
+    const incomes =
+        data.filter(t => t.type === 'income');
 
-    const expenses = data.filter(t => t.type === 'expense');
+    const expenses =
+        data.filter(t => t.type === 'expense');
 
-    incomeList.innerHTML = incomes.length
-        ? incomes.map(t => createTransactionHTML(t, 'income')).join('')
+    incomeList.innerHTML =
+        incomes.length
+        ? incomes.map(t =>
+            createTransactionHTML(t, 'income')
+          ).join('')
         : '<p>No income</p>';
 
-    expenseList.innerHTML = expenses.length
-        ? expenses.map(t => createTransactionHTML(t, 'expense')).join('')
+    expenseList.innerHTML =
+        expenses.length
+        ? expenses.map(t =>
+            createTransactionHTML(t, 'expense')
+          ).join('')
         : '<p>No expenses</p>';
 
-    const incomeTotal = incomes.reduce((s, t) => s + t.amount, 0);
+    const incomeTotal =
+        incomes.reduce((s, t) =>
+            s + t.amount, 0);
 
-    const expenseTotal = expenses.reduce((s, t) => s + t.amount, 0);
+    const expenseTotal =
+        expenses.reduce((s, t) =>
+            s + t.amount, 0);
 
     incomeTotalEl.textContent =
         'Rs.' + incomeTotal.toFixed(2);
@@ -210,7 +229,8 @@ function createTransactionHTML(t, type) {
                 <h4>${t.description}</h4>
 
                 <p>
-                    DATE: ${formatDate(t.date)}
+                    DATE:
+                    ${formatDate(t.date)}
                     -
                     ${t.category}
                 </p>
@@ -248,7 +268,9 @@ async function deleteTransaction(id) {
             .delete();
 
         transactions =
-            transactions.filter(t => t.id !== id);
+            transactions.filter(t =>
+                t.id !== id
+            );
 
         renderTransactions(transactions);
 
