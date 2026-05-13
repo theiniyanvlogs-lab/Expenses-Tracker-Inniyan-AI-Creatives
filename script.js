@@ -91,13 +91,13 @@ try {
 
     setDefaultDate();
 
-    updateSyncStatus('✅ Transaction Added', 'synced');
+    updateSyncStatus('Transaction Added', 'synced');
 
 } catch (err) {
 
     console.error(err);
 
-    updateSyncStatus('❌ Add Failed', 'error');
+    updateSyncStatus('Add Failed', 'error');
 }
 ```
 
@@ -106,7 +106,7 @@ try {
 async function loadTransactions() {
 
 ```
-updateSyncStatus('🔄 Loading...', '');
+updateSyncStatus('Loading...', '');
 
 try {
 
@@ -123,13 +123,13 @@ try {
 
     updateSummary();
 
-    updateSyncStatus('✅ Synced', 'synced');
+    updateSyncStatus('Synced', 'synced');
 
 } catch (err) {
 
     console.error(err);
 
-    updateSyncStatus('❌ Load Failed', 'error');
+    updateSyncStatus('Load Failed', 'error');
 }
 ```
 
@@ -153,7 +153,6 @@ db.collection('transactions')
         renderTransactions(transactions);
 
         updateSummary();
-
     });
 ```
 
@@ -173,17 +172,17 @@ const expenses = data.filter(t => t.type === 'expense');
 
 incomeList.innerHTML = incomes.length
     ? incomes.map(t => createTransactionHTML(t, 'income')).join('')
-    : '<p class="empty-msg">No income</p>';
+    : '<p>No income</p>';
 
 expenseList.innerHTML = expenses.length
     ? expenses.map(t => createTransactionHTML(t, 'expense')).join('')
-    : '<p class="empty-msg">No expenses</p>';
+    : '<p>No expenses</p>';
 
 const incomeTotal = incomes.reduce((s, t) => s + t.amount, 0);
 const expenseTotal = expenses.reduce((s, t) => s + t.amount, 0);
 
-incomeTotalEl.textContent = `₹${incomeTotal.toFixed(2)}`;
-expenseTotalEl.textContent = `₹${expenseTotal.toFixed(2)}`;
+incomeTotalEl.textContent = `Rs.${incomeTotal.toFixed(2)}`;
+expenseTotalEl.textContent = `Rs.${expenseTotal.toFixed(2)}`;
 ```
 
 }
@@ -195,18 +194,23 @@ return `
     <div class="transaction-item ${type}">
 
         <div class="transaction-info">
+
             <h4>${t.description}</h4>
 
             <p>
-                📅 ${formatDate(t.date)}
-                •
-                ${getCategoryEmoji(t.category)}
+                DATE: ${formatDate(t.date)}
+                -
                 ${t.category}
             </p>
+
         </div>
 
         <div class="transaction-amount">
-            ${type === 'income' ? '+' : '-'}₹${t.amount.toFixed(2)}
+
+            ${type === 'income' ? '+' : '-'}
+
+            Rs.${t.amount.toFixed(2)}
+
         </div>
 
         <div class="transaction-actions">
@@ -214,13 +218,13 @@ return `
             <button class="btn-edit"
                 onclick="openEditModal('${t.id}')">
 
-                <i class="fas fa-edit"></i>
+                Edit
             </button>
 
             <button class="btn-delete"
                 onclick="deleteTransaction('${t.id}')">
 
-                <i class="fas fa-trash"></i>
+                Delete
             </button>
 
         </div>
@@ -248,13 +252,13 @@ try {
 
     updateSummary();
 
-    updateSyncStatus('✅ Deleted', 'synced');
+    updateSyncStatus('Deleted', 'synced');
 
 } catch (err) {
 
     console.error(err);
 
-    updateSyncStatus('❌ Delete Failed', 'error');
+    updateSyncStatus('Delete Failed', 'error');
 }
 ```
 
@@ -314,7 +318,7 @@ try {
 
     closeModal('editModal');
 
-    updateSyncStatus('✅ Updated', 'synced');
+    updateSyncStatus('Updated', 'synced');
 
 } catch (err) {
 
@@ -322,7 +326,7 @@ try {
 
     alert('Update Failed');
 
-    updateSyncStatus('❌ Update Failed', 'error');
+    updateSyncStatus('Update Failed', 'error');
 }
 ```
 
@@ -362,13 +366,13 @@ const expense = transactions
 const balance = income - expense;
 
 document.getElementById('totalIncome')
-    .textContent = `₹${income.toFixed(2)}`;
+    .textContent = `Rs.${income.toFixed(2)}`;
 
 document.getElementById('totalExpense')
-    .textContent = `₹${expense.toFixed(2)}`;
+    .textContent = `Rs.${expense.toFixed(2)}`;
 
 document.getElementById('balance')
-    .textContent = `₹${balance.toFixed(2)}`;
+    .textContent = `Rs.${balance.toFixed(2)}`;
 ```
 
 }
@@ -434,7 +438,11 @@ function saveBackup() {
 
 ```
 const backup =
-    JSON.stringify(transactions, null, 2);
+    JSON.stringify(
+        transactions,
+        null,
+        2
+    );
 
 const blob = new Blob([backup], {
     type: 'application/json'
@@ -456,79 +464,72 @@ a.click();
 function loadBackup() {
 
 ```
+const input = document.createElement('input');
 
-    const input = document.createElement('input');
+input.type = 'file';
 
-    input.type = 'file';
+input.accept = '.json';
 
-    input.accept = '.json';
+input.onchange = async (e) => {
 
-    input.onchange = async (e) => {
+    const file = e.target.files[0];
 
-        const file = e.target.files[0];
+    if (!file) return;
 
-        if (!file) return;
+    const reader = new FileReader();
 
-        const reader = new FileReader();
+    reader.onload = async (event) => {
 
-        reader.onload = async (event) => {
+        try {
 
-            try {
+            const backup =
+                JSON.parse(event.target.result);
 
-                const backup =
-                    JSON.parse(event.target.result);
+            const transactionsData =
+                backup.transactions || backup;
 
-                // FIX: support both formats
-                const transactionsData =
-                    backup.transactions || backup;
+            if (!Array.isArray(transactionsData)) {
 
-                if (!Array.isArray(transactionsData)) {
+                alert('Invalid backup file');
 
-                    alert('Invalid backup file');
-
-                    return;
-                }
-
-                for (const t of transactionsData) {
-
-                    const transaction = {
-
-                        description: t.description || '',
-
-                        amount: Number(t.amount) || 0,
-
-                        type: t.type || 'expense',
-
-                        category: t.category || 'other',
-
-                        date: t.date || '',
-
-                        createdAt:
-                            t.createdAt ||
-                            new Date().toISOString()
-                    };
-
-                    await db.collection('transactions')
-                        .add(transaction);
-                }
-
-                alert('✅ Backup Loaded Successfully');
-
-            } catch (err) {
-
-                console.error(err);
-
-                alert('❌ Invalid Backup File');
+                return;
             }
-        };
 
-        reader.readAsText(file);
+            for (const t of transactionsData) {
+
+                const transaction = {
+
+                    description: t.description || '',
+                    amount: Number(t.amount) || 0,
+                    type: t.type || 'expense',
+                    category: t.category || 'other',
+                    date: t.date || '',
+                    createdAt:
+                        t.createdAt ||
+                        new Date().toISOString()
+                };
+
+                await db.collection('transactions')
+                    .add(transaction);
+            }
+
+            alert('Backup Loaded Successfully');
+
+        } catch (err) {
+
+            console.error(err);
+
+            alert('Invalid Backup File');
+        }
     };
 
-    input.click();
-}
+    reader.readAsText(file);
+};
+
+input.click();
 ```
 
+}
 
 async function clearAllData() {
 
@@ -548,13 +549,13 @@ try {
 
     await batch.commit();
 
-    updateSyncStatus('✅ Cleared', 'synced');
+    updateSyncStatus('Cleared', 'synced');
 
 } catch (err) {
 
     console.error(err);
 
-    updateSyncStatus('❌ Clear Failed', 'error');
+    updateSyncStatus('Clear Failed', 'error');
 }
 ```
 
@@ -572,29 +573,6 @@ return new Date(dateStr)
             year: 'numeric'
         }
     );
-```
-
-}
-
-function getCategoryEmoji(cat) {
-
-```
-const emojis = {
-    food: '🍔',
-    grocery: '🛒',
-    vegetables: '🥦',
-    beauty: '💄',
-    transport: '🚗',
-    shopping: '🛍️',
-    bills: '📄',
-    entertainment: '🎬',
-    health: '🏥',
-    salary: '💼',
-    investment: '📈',
-    other: '📦'
-};
-
-return emojis[cat] || '📦';
 ```
 
 }
