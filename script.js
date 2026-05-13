@@ -1,4 +1,3 @@
-```javascript
 let transactions = [];
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -9,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function setDefaultDate() {
+
     const today = new Date().toISOString().split('T')[0];
 
     const dateInput = document.getElementById('date');
@@ -90,9 +90,7 @@ async function addTransaction(e) {
 
     try {
 
-        const docRef =
-            await db.collection('transactions')
-            .add(transaction);
+        const docRef = await db.collection('transactions').add(transaction);
 
         await db.collection('transactions')
             .doc(docRef.id)
@@ -120,8 +118,7 @@ async function loadTransactions() {
 
     try {
 
-        const snapshot =
-            await db.collection('transactions')
+        const snapshot = await db.collection('transactions')
             .orderBy('date', 'desc')
             .get();
 
@@ -155,8 +152,7 @@ function syncTransactions() {
             }));
 
             transactions.sort((a, b) =>
-                new Date(b.date) -
-                new Date(a.date)
+                new Date(b.date) - new Date(a.date)
             );
 
             renderTransactions(transactions);
@@ -167,45 +163,29 @@ function syncTransactions() {
 
 function renderTransactions(data) {
 
-    const incomeList =
-        document.getElementById('incomeList');
+    const incomeList = document.getElementById('incomeList');
 
-    const expenseList =
-        document.getElementById('expenseList');
+    const expenseList = document.getElementById('expenseList');
 
-    const incomeTotalEl =
-        document.getElementById('incomeTotal');
+    const incomeTotalEl = document.getElementById('incomeTotal');
 
-    const expenseTotalEl =
-        document.getElementById('expenseTotal');
+    const expenseTotalEl = document.getElementById('expenseTotal');
 
-    const incomes =
-        data.filter(t => t.type === 'income');
+    const incomes = data.filter(t => t.type === 'income');
 
-    const expenses =
-        data.filter(t => t.type === 'expense');
+    const expenses = data.filter(t => t.type === 'expense');
 
-    incomeList.innerHTML =
-        incomes.length
-        ? incomes.map(t =>
-            createTransactionHTML(t, 'income')
-          ).join('')
+    incomeList.innerHTML = incomes.length
+        ? incomes.map(t => createTransactionHTML(t, 'income')).join('')
         : '<p>No income</p>';
 
-    expenseList.innerHTML =
-        expenses.length
-        ? expenses.map(t =>
-            createTransactionHTML(t, 'expense')
-          ).join('')
+    expenseList.innerHTML = expenses.length
+        ? expenses.map(t => createTransactionHTML(t, 'expense')).join('')
         : '<p>No expenses</p>';
 
-    const incomeTotal =
-        incomes.reduce((s, t) =>
-            s + t.amount, 0);
+    const incomeTotal = incomes.reduce((s, t) => s + t.amount, 0);
 
-    const expenseTotal =
-        expenses.reduce((s, t) =>
-            s + t.amount, 0);
+    const expenseTotal = expenses.reduce((s, t) => s + t.amount, 0);
 
     incomeTotalEl.textContent =
         'Rs.' + incomeTotal.toFixed(2);
@@ -216,6 +196,12 @@ function renderTransactions(data) {
 
 function createTransactionHTML(t, type) {
 
+    let sign = '-';
+
+    if (type === 'income') {
+        sign = '+';
+    }
+
     return `
         <div class="transaction-item ${type}">
 
@@ -224,8 +210,7 @@ function createTransactionHTML(t, type) {
                 <h4>${t.description}</h4>
 
                 <p>
-                    DATE:
-                    ${formatDate(t.date)}
+                    DATE: ${formatDate(t.date)}
                     -
                     ${t.category}
                 </p>
@@ -233,23 +218,16 @@ function createTransactionHTML(t, type) {
             </div>
 
             <div class="transaction-amount">
-
-                ${type === 'income' ? '+' : '-'}
-                ${'Rs.' + t.amount.toFixed(2)}
-
+                ${sign} Rs.${t.amount.toFixed(2)}
             </div>
 
             <div class="transaction-actions">
 
-                <button class="btn-edit"
-                    onclick="openEditModal('${t.id}')">
-
+                <button onclick="openEditModal('${t.id}')">
                     Edit
                 </button>
 
-                <button class="btn-delete"
-                    onclick="deleteTransaction('${t.id}')">
-
+                <button onclick="deleteTransaction('${t.id}')">
                     Delete
                 </button>
 
@@ -270,9 +248,7 @@ async function deleteTransaction(id) {
             .delete();
 
         transactions =
-            transactions.filter(t =>
-                t.id !== id
-            );
+            transactions.filter(t => t.id !== id);
 
         renderTransactions(transactions);
 
@@ -329,21 +305,17 @@ async function saveEditedTransaction() {
 
         amount:
             parseFloat(
-                document.getElementById('editAmount')
-                .value
+                document.getElementById('editAmount').value
             ),
 
         type:
-            document.getElementById('editType')
-            .value,
+            document.getElementById('editType').value,
 
         category:
-            document.getElementById('editCategory')
-            .value,
+            document.getElementById('editCategory').value,
 
         date:
-            document.getElementById('editDate')
-            .value,
+            document.getElementById('editDate').value,
 
         updatedAt:
             new Date().toISOString()
@@ -395,15 +367,11 @@ function filterAndRender() {
     const filtered =
         transactions.filter(t =>
 
-            t.description
-            .toLowerCase()
-            .includes(search)
+            t.description.toLowerCase().includes(search)
 
             ||
 
-            t.category
-            .toLowerCase()
-            .includes(search)
+            t.category.toLowerCase().includes(search)
         );
 
     renderTransactions(filtered);
@@ -414,29 +382,23 @@ function updateSummary() {
     const income =
         transactions
         .filter(t => t.type === 'income')
-        .reduce((s, t) =>
-            s + t.amount, 0);
+        .reduce((s, t) => s + t.amount, 0);
 
     const expense =
         transactions
         .filter(t => t.type === 'expense')
-        .reduce((s, t) =>
-            s + t.amount, 0);
+        .reduce((s, t) => s + t.amount, 0);
 
-    const balance =
-        income - expense;
+    const balance = income - expense;
 
     document.getElementById('totalIncome')
-        .textContent =
-        'Rs.' + income.toFixed(2);
+        .textContent = 'Rs.' + income.toFixed(2);
 
     document.getElementById('totalExpense')
-        .textContent =
-        'Rs.' + expense.toFixed(2);
+        .textContent = 'Rs.' + expense.toFixed(2);
 
     document.getElementById('balance')
-        .textContent =
-        'Rs.' + balance.toFixed(2);
+        .textContent = 'Rs.' + balance.toFixed(2);
 }
 
 function exportToCSV() {
@@ -478,11 +440,7 @@ function exportToPDF() {
 
     doc.setFontSize(18);
 
-    doc.text(
-        'Expense Report',
-        20,
-        20
-    );
+    doc.text('Expense Report', 20, 20);
 
     let y = 40;
 
@@ -503,28 +461,16 @@ function exportToPDF() {
 function saveBackup() {
 
     const backupData = {
-        exportDate:
-            new Date().toISOString(),
-
-        totalTransactions:
-            transactions.length,
-
-        transactions:
-            transactions
+        exportDate: new Date().toISOString(),
+        totalTransactions: transactions.length,
+        transactions: transactions
     };
 
     const blob =
         new Blob(
-            [
-                JSON.stringify(
-                    backupData,
-                    null,
-                    2
-                )
-            ],
+            [JSON.stringify(backupData, null, 2)],
             {
-                type:
-                    'application/json'
+                type: 'application/json'
             }
         );
 
@@ -536,8 +482,7 @@ function saveBackup() {
 
     a.href = url;
 
-    a.download =
-        'expense_backup.json';
+    a.download = 'expense_backup.json';
 
     a.click();
 }
@@ -553,37 +498,26 @@ function loadBackup() {
 
     input.onchange = async (e) => {
 
-        const file =
-            e.target.files[0];
+        const file = e.target.files[0];
 
         if (!file) return;
 
         const reader =
             new FileReader();
 
-        reader.onload =
-            async (event) => {
+        reader.onload = async (event) => {
 
             try {
 
                 const backup =
-                    JSON.parse(
-                        event.target.result
-                    );
+                    JSON.parse(event.target.result);
 
                 const transactionsData =
-                    backup.transactions ||
-                    backup;
+                    backup.transactions || backup;
 
-                if (
-                    !Array.isArray(
-                        transactionsData
-                    )
-                ) {
+                if (!Array.isArray(transactionsData)) {
 
-                    alert(
-                        'Invalid backup file'
-                    );
+                    alert('Invalid backup file');
 
                     return;
                 }
@@ -609,25 +543,20 @@ function loadBackup() {
 
                         createdAt:
                             t.createdAt ||
-                            new Date()
-                            .toISOString()
+                            new Date().toISOString()
                     };
 
                     await db.collection('transactions')
                         .add(transaction);
                 }
 
-                alert(
-                    'Backup Loaded Successfully'
-                );
+                alert('Backup Loaded Successfully');
 
             } catch (err) {
 
                 console.error(err);
 
-                alert(
-                    'Invalid Backup File'
-                );
+                alert('Invalid Backup File');
             }
         };
 
@@ -658,19 +587,13 @@ async function clearAllData() {
 
         await batch.commit();
 
-        updateSyncStatus(
-            'Cleared',
-            'synced'
-        );
+        updateSyncStatus('Cleared', 'synced');
 
     } catch (err) {
 
         console.error(err);
 
-        updateSyncStatus(
-            'Clear Failed',
-            'error'
-        );
+        updateSyncStatus('Clear Failed', 'error');
     }
 }
 
@@ -716,4 +639,3 @@ function updateSyncStatus(msg, status) {
     el.className =
         'sync-status ' + status;
 }
-```
