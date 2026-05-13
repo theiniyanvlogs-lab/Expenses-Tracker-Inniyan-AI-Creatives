@@ -213,14 +213,16 @@ function openEditModal(id) {
     openModal('editModal');
 }
 
-// ✅ FIXED: Save Edited Transaction - WITH ROBUST ERROR HANDLING
+// FIXED EDIT FUNCTION
 async function saveEditedTransaction() {
+
     const id = document.getElementById('editId').value;
+
     if (!id) {
-        alert('Error: Transaction ID is missing!');
+        alert('Transaction ID missing');
         return;
     }
-    
+
     const updatedData = {
         description: document.getElementById('editDescription').value.trim(),
         amount: parseFloat(document.getElementById('editAmount').value),
@@ -229,7 +231,45 @@ async function saveEditedTransaction() {
         date: document.getElementById('editDate').value,
         updatedAt: new Date().toISOString()
     };
-    
+
+    try {
+
+        updateSyncStatus('💾 Updating...', '');
+
+        // Update directly in Firebase
+        await db.collection('transactions')
+            .doc(id)
+            .update(updatedData);
+
+        // Update local transactions array
+        transactions = transactions.map(t => {
+            if (t.id === id) {
+                return { ...t, ...updatedData };
+            }
+            return t;
+        });
+
+        // Refresh UI
+        renderTransactions(transactions);
+        updateSummary();
+
+        closeModal('editModal');
+
+        updateSyncStatus('✅ Updated successfully!', 'synced');
+
+    } catch (err) {
+
+        console.error(err);
+
+        alert(
+            'Edit failed.\n\n' +
+            'Reason:\n' +
+            err.message
+        );
+
+        updateSyncStatus('❌ Update failed', 'error');
+    }
+}
     // Validate inputs
     if (!updatedData.description || isNaN(updatedData.amount) || updatedData.amount <= 0) {
         alert('Please fill in all fields correctly. Amount must be greater than 0.');
