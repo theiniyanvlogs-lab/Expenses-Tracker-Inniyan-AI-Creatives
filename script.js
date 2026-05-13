@@ -652,7 +652,9 @@ function formatDate(dateStr) {
 // Get category emoji
 function getCategoryEmoji(cat) {
     const emojis = {
-        food: '🍔', transport: '🚗', shopping: '🛍️', bills: '📄',
+        grocery: '🛒',
+        vegetables: '🥦',
+        beauty: '💄', food: '🍔', transport: '🚗', shopping: '🛍️', bills: '📄',
         entertainment: '🎬', health: '🏥', salary: '💼', investment: '📈', other: '📦'
     };
     return emojis[cat] || '📦';
