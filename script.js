@@ -456,50 +456,79 @@ a.click();
 function loadBackup() {
 
 ```
-const input = document.createElement('input');
 
-input.type = 'file';
+    const input = document.createElement('input');
 
-input.accept = '.json';
+    input.type = 'file';
 
-input.onchange = async (e) => {
+    input.accept = '.json';
 
-    const file = e.target.files[0];
+    input.onchange = async (e) => {
 
-    if (!file) return;
+        const file = e.target.files[0];
 
-    const reader = new FileReader();
+        if (!file) return;
 
-    reader.onload = async event => {
+        const reader = new FileReader();
 
-        try {
+        reader.onload = async (event) => {
 
-            const backupData =
-                JSON.parse(event.target.result);
+            try {
 
-            for (const t of backupData) {
+                const backup =
+                    JSON.parse(event.target.result);
 
-                await db.collection('transactions')
-                    .add(t);
+                // FIX: support both formats
+                const transactionsData =
+                    backup.transactions || backup;
+
+                if (!Array.isArray(transactionsData)) {
+
+                    alert('Invalid backup file');
+
+                    return;
+                }
+
+                for (const t of transactionsData) {
+
+                    const transaction = {
+
+                        description: t.description || '',
+
+                        amount: Number(t.amount) || 0,
+
+                        type: t.type || 'expense',
+
+                        category: t.category || 'other',
+
+                        date: t.date || '',
+
+                        createdAt:
+                            t.createdAt ||
+                            new Date().toISOString()
+                    };
+
+                    await db.collection('transactions')
+                        .add(transaction);
+                }
+
+                alert('✅ Backup Loaded Successfully');
+
+            } catch (err) {
+
+                console.error(err);
+
+                alert('❌ Invalid Backup File');
             }
+        };
 
-            alert('Backup Loaded');
-
-        } catch (err) {
-
-            console.error(err);
-
-            alert('Invalid Backup');
-        }
+        reader.readAsText(file);
     };
 
-    reader.readAsText(file);
-};
-
-input.click();
+    input.click();
+}
 ```
 
-}
 
 async function clearAllData() {
 
