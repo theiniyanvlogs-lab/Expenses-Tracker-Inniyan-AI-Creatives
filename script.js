@@ -54,9 +54,8 @@ function setupEventListeners() {
 // Add new transaction to Firebase
 async function addTransaction(e) {
     e.preventDefault();
-    
+
     const transaction = {
-        id: Date.now().toString(),
         userId: userId,
         description: document.getElementById('description').value.trim(),
         amount: parseFloat(document.getElementById('amount').value),
@@ -65,18 +64,29 @@ async function addTransaction(e) {
         date: document.getElementById('date').value,
         createdAt: new Date().toISOString()
     };
-    
+
     try {
-        await db.collection('transactions').add(transaction);
+
+        // Create document
+        const docRef = await db.collection('transactions').add(transaction);
+
+        // Save Firebase document ID inside document
+        await db.collection('transactions')
+            .doc(docRef.id)
+            .update({
+                id: docRef.id
+            });
+
         document.getElementById('transactionForm').reset();
         setDefaultDate();
+
         updateSyncStatus('✅ Transaction added!', 'synced');
+
     } catch (err) {
         console.error('Error adding transaction:', err);
         updateSyncStatus('❌ Error saving', 'error');
     }
 }
-
 // Load transactions from Firebase
 async function loadTransactions() {
     updateSyncStatus('🔄 Loading...', '');
