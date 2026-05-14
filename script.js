@@ -60,6 +60,8 @@ function setupEventListeners() {
         if (e.target === editModal) editModal.classList.add('hidden');
     });
     editForm.addEventListener('submit', updateTransaction);
+    // Add this line in setupEventListeners()
+    document.getElementById('saveEditBtn').addEventListener('click', updateTransaction);
 
     // Date Range Preview Modal
     previewBtn.addEventListener('click', () => dateRangeModal.classList.remove('hidden'));
