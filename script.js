@@ -71,8 +71,11 @@ function setupEventListeners() {
         if (e.target === editModal) editModal.classList.add('hidden');
     });
     
-    // FIX: Add click event for save button (since button type="button")
-    document.getElementById('saveEditBtn').addEventListener('click', updateTransaction);
+    // IMPORTANT: Prevent form submission on edit modal
+    editForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        updateTransaction();
+    });
 
     // Date Range Preview Modal
     previewBtn.addEventListener('click', () => dateRangeModal.classList.remove('hidden'));
@@ -137,8 +140,8 @@ async function addTransaction(e) {
     }
 }
 
-// Delete Transaction
-async function deleteTransaction(id) {
+// Delete Transaction - MAKE GLOBAL
+window.deleteTransaction = async function(id) {
     if (confirm('Are you sure you want to delete this transaction?')) {
         try {
             await db.collection('transactions').doc(id).delete();
@@ -152,8 +155,8 @@ async function deleteTransaction(id) {
     }
 }
 
-// Open Edit Modal
-function openEditModal(id) {
+// Open Edit Modal - MAKE GLOBAL
+window.openEditModal = function(id) {
     const transaction = transactions.find(t => t.id === id);
     if (!transaction) return;
 
@@ -167,10 +170,14 @@ function openEditModal(id) {
     editModal.classList.remove('hidden');
 }
 
-// Update Transaction - FIXED with set() + merge
-async function updateTransaction(e) {
-    e.preventDefault();
+// Update Transaction - FIXED
+async function updateTransaction() {
     const id = document.getElementById('editId').value;
+    
+    if (!id) {
+        alert('Error: No transaction ID found');
+        return;
+    }
     
     const updatedData = {
         description: document.getElementById('editDescription').value,
@@ -182,16 +189,17 @@ async function updateTransaction(e) {
     };
 
     try {
-        // Use set with merge - works for both new and existing documents
-        await db.collection('transactions').doc(id).set(updatedData, { merge: true });
+        // Use update() to modify existing document
+        await db.collection('transactions').doc(id).update(updatedData);
         
         editModal.classList.add('hidden');
+        editForm.reset();
         loadTransactions();
         updateSyncStatus('✅ Updated', 'synced');
     } catch (error) {
         console.error("Error updating:", error);
         updateSyncStatus('❌ Update Failed', 'error');
-        alert('Failed to update. Try deleting and adding again.');
+        alert('Failed to update. Error: ' + error.message);
     }
 }
 
@@ -511,7 +519,7 @@ function exportToCSV() {
         return;
     }
 
-    let csvContent = "data:text/csv;charset=utf-8,";
+    let csvContent = "text/csv;charset=utf-8,";
     csvContent += "Date,Description,Category,Type,Amount\n";
 
     transactions.forEach(t => {
@@ -538,7 +546,7 @@ function saveBackup() {
         transactions: transactions
     };
     
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+    const dataStr = "text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
     downloadAnchorNode.setAttribute("download", `stitches_backup_${new Date().toISOString().split('T')[0]}.json`);
