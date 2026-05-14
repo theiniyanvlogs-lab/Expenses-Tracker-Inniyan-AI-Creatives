@@ -324,37 +324,156 @@ function generateDateRangePreview() {
 
 // ================= EXPORT & BACKUP =================
 
-// Export to PDF
+// Global variables to store date range
+let globalFromDate = '';
+let globalToDate = '';
+
+// Export to PDF - IMPROVED VERSION
 function exportToPDF() {
-    if (transactions.length === 0) {
-        alert("No transactions to export!");
+    // Filter transactions based on selected date range
+    let filteredTransactions = [...transactions];
+    let dateRangeText = 'All Time';
+    
+    // Check if date range is selected (from the Preview modal or global vars)
+    const fromDateInput = document.getElementById('fromDate')?.value;
+    const toDateInput = document.getElementById('toDate')?.value;
+    
+    if (fromDateInput && toDateInput) {
+        globalFromDate = fromDateInput;
+        globalToDate = toDateInput;
+    }
+    
+    if (globalFromDate && globalToDate) {
+        const start = new Date(globalFromDate);
+        const end = new Date(globalToDate);
+        end.setHours(23, 59, 59, 999);
+        
+        filteredTransactions = transactions.filter(t => {
+            const tDate = new Date(t.date);
+            return tDate >= start && tDate <= end;
+        });
+        
+        dateRangeText = `${formatDate(globalFromDate)} to ${formatDate(globalToDate)}`;
+    }
+    
+    if (filteredTransactions.length === 0) {
+        alert("No transactions to export for the selected period!");
         return;
     }
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
 
-    doc.setFontSize(20);
-    doc.text("Expense Report", 14, 20);
+    // ===== HEADER =====
+    doc.setFontSize(22);
+    doc.setTextColor(102, 126, 234);
+    doc.text("Expense Tracker Report", 105, 20, { align: 'center' });
+    
+    // Date range
     doc.setFontSize(12);
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 30);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Period: ${dateRangeText}`, 105, 28, { align: 'center' });
+    doc.text(`Generated: ${new Date().toLocaleDateString('en-IN')}`, 105, 34, { align: 'center' });
 
-    const tableData = transactions.map(t => [
+    // ===== SUMMARY BOX =====
+    const incomeTotal = filteredTransactions
+        .filter(t => t.type === 'income')
+        .reduce((sum, t) => sum + t.amount, 0);
+        
+    const expenseTotal = filteredTransactions
+        .filter(t => t.type === 'expense')
+        .reduce((sum, t) => sum + t.amount, 0);
+        
+    const netBalance = incomeTotal - expenseTotal;
+
+    // Draw summary box background
+    doc.setFillColor(248, 249, 250);
+    doc.roundedRect(14, 40, 182, 25, 3, 3, 'F');
+    
+    // Summary text
+    doc.setFontSize(11);
+    doc.setTextColor(67, 233, 123); // Green for income
+    doc.text(`Total Income: Rs. ${incomeTotal.toFixed(2)}`, 20, 48);
+    
+    doc.setTextColor(250, 112, 154); // Pink for expense
+    doc.text(`Total Expenses: Rs. ${expenseTotal.toFixed(2)}`, 20, 56);
+    
+    doc.setTextColor(102, 126, 234); // Blue for balance
+    doc.text(`Net Balance: Rs. ${netBalance.toFixed(2)}`, 20, 64);
+
+    // Transaction count
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Total Transactions: ${filteredTransactions.length}`, 140, 48);
+
+    // ===== TABLE =====
+    const tableData = filteredTransactions.map(t => [
         formatDate(t.date),
         t.description,
-        t.category,
-        t.type === 'income' ? `+${t.amount}` : `-${t.amount}`
+        t.category.charAt(0).toUpperCase() + t.category.slice(1), // Capitalize category
+        t.type === 'income' ? `+${t.amount.toFixed(2)}` : `-${t.amount.toFixed(2)}`
     ]);
 
     doc.autoTable({
-        startY: 40,
+        startY: 72,
         head: [['Date', 'Description', 'Category', 'Amount']],
         body: tableData,
         theme: 'grid',
-        headStyles: { fillColor: [102, 126, 234] }
+        headStyles: { 
+            fillColor: [102, 126, 234],
+            textColor: 255,
+            fontStyle: 'bold',
+            fontSize: 9
+        },
+        styles: { 
+            fontSize: 8,
+            cellPadding: 3
+        },
+        alternateRowStyles: {
+            fillColor: [250, 250, 250]
+        },
+        // Color code income/expense in amount column
+        didParseCell: function(data) {
+            if (data.section === 'body' && data.column.index === 3) {
+                const text = data.cell.raw;
+                if (text && text.startsWith('+')) {
+                    data.cell.styles.textColor = [67, 233, 123]; // Green for income
+                    data.cell.styles.fontStyle = 'bold';
+                } else if (text && text.startsWith('-')) {
+                    data.cell.styles.textColor = [250, 112, 154]; // Pink for expense
+                }
+            }
+        }
     });
 
-    doc.save(`Expense_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+    // ===== FOOTER TOTALS =====
+    const finalY = doc.lastAutoTable.finalY + 5;
+    
+    // Draw footer box
+    doc.setFillColor(240, 240, 240);
+    doc.roundedRect(14, finalY, 182, 20, 3, 3, 'F');
+    
+    doc.setFontSize(10);
+    doc.text(`Income: Rs. ${incomeTotal.toFixed(2)}`, 20, finalY + 8);
+    doc.text(`Expenses: Rs. ${expenseTotal.toFixed(2)}`, 20, finalY + 15);
+    doc.text(`Net: Rs. ${netBalance.toFixed(2)}`, 120, finalY + 12);
+
+    // ===== PAGE FOOTER =====
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Page ${i} of ${pageCount}`, 105, 290, { align: 'center' });
+        doc.text('Powered by iniyan.talkies', 105, 295, { align: 'center' });
+    }
+
+    // Save PDF
+    const fileName = globalFromDate && globalToDate 
+        ? `Expense_Report_${globalFromDate}_to_${globalToDate}.pdf`
+        : `Expense_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+    
+    doc.save(fileName);
 }
 
 // Export to CSV
