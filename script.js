@@ -59,8 +59,8 @@ function setupEventListeners() {
     editModal.addEventListener('click', (e) => {
         if (e.target === editModal) editModal.classList.add('hidden');
     });
-    editForm.addEventListener('submit', updateTransaction);
-    // Add this line in setupEventListeners()
+    
+    // FIX: Add click event for save button
     document.getElementById('saveEditBtn').addEventListener('click', updateTransaction);
 
     // Date Range Preview Modal
@@ -79,7 +79,6 @@ function setupEventListeners() {
     loadBackupInput.addEventListener('change', loadBackup);
     clearBtn.addEventListener('click', clearAllData);
 }
-
 // ================= FIREBASE OPERATIONS =================
 
 // Load Transactions - NO EMAIL FILTER
