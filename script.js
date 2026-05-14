@@ -1,7 +1,7 @@
 // Global Variables
 let transactions = [];
 let userEmail = null;
-let db; // Firebase Firestore instance
+// REMOVED: let db; (Because it is already defined in firebase-config.js)
 
 // DOM Elements
 const transactionForm = document.getElementById('transactionForm');
@@ -54,7 +54,7 @@ function checkAuth() {
         userEmail = storedEmail;
         loadTransactions();
     } else {
-        const email = prompt("Enter your email to access your data:");
+        const email = prompt("Enter your email to access your ");
         if (email) {
             userEmail = email.trim();
             localStorage.setItem('stitches_user_email', userEmail);
@@ -89,7 +89,7 @@ function setupEventListeners() {
     });
     generatePreviewBtn.addEventListener('click', generateDateRangePreview);
 
-    // Action Buttons
+    // Action Buttons (These will work now!)
     exportCsvBtn.addEventListener('click', exportToCSV);
     exportPdfBtn.addEventListener('click', exportToPDF);
     saveBackupBtn.addEventListener('click', saveBackup);
@@ -104,8 +104,7 @@ function setupEventListeners() {
 async function loadTransactions() {
     updateSyncStatus('Syncing...', '');
     try {
-        // Assuming 'db' is initialized in firebase-config.js
-        // If db is not global, you need to pass it or initialize here
+        // 'db' comes from firebase-config.js
         const snapshot = await db.collection('transactions')
             .where('userEmail', '==', userEmail)
             .orderBy('date', 'desc')
@@ -394,7 +393,7 @@ function exportToCSV() {
         return;
     }
 
-    let csvContent = "data:text/csv;charset=utf-8,";
+    let csvContent = "text/csv;charset=utf-8,";
     csvContent += "Date,Description,Category,Type,Amount\n";
 
     transactions.forEach(t => {
@@ -413,7 +412,7 @@ function exportToCSV() {
 
 // Save Backup (JSON)
 function saveBackup() {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(transactions));
+    const dataStr = "text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(transactions));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
     downloadAnchorNode.setAttribute("download", `backup_${new Date().toISOString().split('T')[0]}.json`);
