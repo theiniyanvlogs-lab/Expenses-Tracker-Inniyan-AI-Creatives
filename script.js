@@ -1,6 +1,5 @@
 // Global Variables
 let transactions = [];
-let db; // Firebase Firestore instance (comes from firebase-config.js)
 
 // DOM Elements
 const transactionForm = document.getElementById('transactionForm');
