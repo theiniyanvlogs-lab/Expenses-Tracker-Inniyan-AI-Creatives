@@ -1,616 +1,467 @@
+// Global Variables
 let transactions = [];
-let userId = null;
+let userEmail = null;
+let db; // Firebase Firestore instance
 
-// Initialize app when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    generateUserId();
-    loadTransactions();
+// DOM Elements
+const transactionForm = document.getElementById('transactionForm');
+const searchInput = document.getElementById('searchInput');
+const filterMonth = document.getElementById('filterMonth');
+const incomeList = document.getElementById('incomeList');
+const expenseList = document.getElementById('expenseList');
+const totalIncomeEl = document.getElementById('totalIncome');
+const totalExpenseEl = document.getElementById('totalExpense');
+const balanceEl = document.getElementById('balance');
+const syncStatusEl = document.getElementById('syncStatus');
+const syncTextEl = document.getElementById('syncText');
+
+// Edit Modal Elements
+const editModal = document.getElementById('editModal');
+const editForm = document.getElementById('editForm');
+const closeEditModalBtn = document.querySelector('.close-edit-modal');
+
+// Date Range Preview Elements
+const previewBtn = document.getElementById('previewBtn');
+const dateRangeModal = document.getElementById('dateRangeModal');
+const closeModalBtn = document.querySelector('.close-modal');
+const generatePreviewBtn = document.getElementById('generatePreviewBtn');
+const previewResult = document.getElementById('previewResult');
+
+// Action Buttons
+const exportCsvBtn = document.getElementById('exportCsvBtn');
+const exportPdfBtn = document.getElementById('exportPdfBtn');
+const saveBackupBtn = document.getElementById('saveBackupBtn');
+const loadBackupBtn = document.getElementById('loadBackupBtn');
+const clearBtn = document.getElementById('clearBtn');
+const loadBackupInput = document.createElement('input');
+loadBackupInput.type = 'file';
+loadBackupInput.accept = '.json';
+loadBackupInput.style.display = 'none';
+document.body.appendChild(loadBackupInput);
+
+// ================= INITIALIZATION =================
+
+// Initialize App
+function initApp() {
+    checkAuth();
     setupEventListeners();
-    setDefaultDate();
-});
+}
 
-// Generate fixed userId for cross-device sync
-function generateUserId() {
-    let storedId = localStorage.getItem('expenseTrackerUserId');
-    if (!storedId) {
-        storedId = 'user_shared_expenses';
-        localStorage.setItem('expenseTrackerUserId', storedId);
+// Check Authentication (Simple Prompt for Demo)
+function checkAuth() {
+    const storedEmail = localStorage.getItem('stitches_user_email');
+    if (storedEmail) {
+        userEmail = storedEmail;
+        loadTransactions();
+    } else {
+        const email = prompt("Enter your email to access your data:");
+        if (email) {
+            userEmail = email.trim();
+            localStorage.setItem('stitches_user_email', userEmail);
+            loadTransactions();
+        } else {
+            updateSyncStatus('Authentication required', 'error');
+        }
     }
-    userId = storedId;
-    console.log('✅ User ID:', userId);
 }
 
-// Set default date to today
-function setDefaultDate() {
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('date').value = today;
-}
-
-// Setup all event listeners
+// Setup Event Listeners
 function setupEventListeners() {
-    document.getElementById('transactionForm').addEventListener('submit', addTransaction);
-    document.getElementById('searchInput').addEventListener('input', filterAndRender);
-    document.getElementById('filterMonth').addEventListener('change', filterAndRender);
-    
-    // Export & Backup buttons
-    document.getElementById('exportCsvBtn').addEventListener('click', exportToCSV);
-    document.getElementById('exportPdfBtn').addEventListener('click', exportToPDF);
-    document.getElementById('saveBackupBtn').addEventListener('click', saveBackup);
-    document.getElementById('loadBackupBtn').addEventListener('click', loadBackup);
-    document.getElementById('clearBtn').addEventListener('click', clearAllData);
-    
-    // Modal events
-    document.getElementById('previewBtn').addEventListener('click', () => openModal('dateRangeModal'));
-    document.querySelector('.close-modal').addEventListener('click', () => closeModal('dateRangeModal'));
-    document.getElementById('generatePreviewBtn').addEventListener('click', generateDatePreview);
-    
-    // Edit modal events
-    document.getElementById('saveEditBtn').addEventListener('click', saveEditedTransaction);
-    document.querySelector('.close-edit-modal').addEventListener('click', () => closeModal('editModal'));
-    
-    syncTransactions();
+    // Form Submit
+    transactionForm.addEventListener('submit', addTransaction);
+
+    // Search & Filter
+    searchInput.addEventListener('input', renderTransactions);
+    filterMonth.addEventListener('change', renderTransactions);
+
+    // Edit Modal
+    closeEditModalBtn.addEventListener('click', () => editModal.classList.add('hidden'));
+    editModal.addEventListener('click', (e) => {
+        if (e.target === editModal) editModal.classList.add('hidden');
+    });
+    editForm.addEventListener('submit', updateTransaction);
+
+    // Date Range Preview Modal
+    previewBtn.addEventListener('click', () => dateRangeModal.classList.remove('hidden'));
+    closeModalBtn.addEventListener('click', () => dateRangeModal.classList.add('hidden'));
+    dateRangeModal.addEventListener('click', (e) => {
+        if (e.target === dateRangeModal) dateRangeModal.classList.add('hidden');
+    });
+    generatePreviewBtn.addEventListener('click', generateDateRangePreview);
+
+    // Action Buttons
+    exportCsvBtn.addEventListener('click', exportToCSV);
+    exportPdfBtn.addEventListener('click', exportToPDF);
+    saveBackupBtn.addEventListener('click', saveBackup);
+    loadBackupBtn.addEventListener('click', () => loadBackupInput.click());
+    loadBackupInput.addEventListener('change', loadBackup);
+    clearBtn.addEventListener('click', clearAllData);
 }
 
-// Add new transaction to Firebase
+// ================= FIREBASE OPERATIONS =================
+
+// Load Transactions
+async function loadTransactions() {
+    updateSyncStatus('Syncing...', '');
+    try {
+        // Assuming 'db' is initialized in firebase-config.js
+        // If db is not global, you need to pass it or initialize here
+        const snapshot = await db.collection('transactions')
+            .where('userEmail', '==', userEmail)
+            .orderBy('date', 'desc')
+            .get();
+
+        transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        renderTransactions();
+        updateSyncStatus('Synced', 'synced');
+    } catch (error) {
+        console.error("Error loading transactions:", error);
+        updateSyncStatus('Error: ' + error.message, 'error');
+    }
+}
+
+// Add Transaction
 async function addTransaction(e) {
     e.preventDefault();
-    
-    const transaction = {
-        id: Date.now().toString(),
-        userId: userId,
-        description: document.getElementById('description').value.trim(),
+    updateSyncStatus('Saving...', '');
+
+    const newTransaction = {
+        description: document.getElementById('description').value,
         amount: parseFloat(document.getElementById('amount').value),
         type: document.getElementById('type').value,
         category: document.getElementById('category').value,
         date: document.getElementById('date').value,
+        userEmail: userEmail,
         createdAt: new Date().toISOString()
     };
-    
+
     try {
-        await db.collection('transactions').add(transaction);
-        document.getElementById('transactionForm').reset();
-        setDefaultDate();
-        updateSyncStatus('✅ Transaction added!', 'synced');
-    } catch (err) {
-        console.error('Error adding transaction:', err);
-        updateSyncStatus('❌ Error saving', 'error');
+        await db.collection('transactions').add(newTransaction);
+        transactionForm.reset();
+        // Set default date back to today
+        document.getElementById('date').valueAsDate = new Date();
+        loadTransactions();
+    } catch (error) {
+        console.error("Error adding transaction:", error);
+        updateSyncStatus('Save Failed', 'error');
     }
 }
 
-// Load transactions from Firebase
-async function loadTransactions() {
-    updateSyncStatus('🔄 Loading...', '');
-    try {
-        const snapshot = await db.collection('transactions')
-            .where('userId', '==', userId)
-            .orderBy('date', 'desc')
-            .get();
-        
-        transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        renderTransactions(transactions);
-        updateSummary();
-        updateSyncStatus('✅ Synced with cloud', 'synced');
-    } catch (err) {
-        console.error('Error loading transactions:', err);
-        updateSyncStatus('❌ Sync error', 'error');
-    }
-}
-
-// Real-time sync listener
-function syncTransactions() {
-    db.collection('transactions')
-        .where('userId', '==', userId)
-        .onSnapshot(snapshot => {
-            transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
-            renderTransactions(transactions);
-            updateSummary();
-            updateSyncStatus('✅ Live synced', 'synced');
-        }, error => {
-            console.error('Sync error:', error);
-            updateSyncStatus('❌ Sync failed', 'error');
-        });
-}
-
-// Render transactions in separate columns
-function renderTransactions(data) {
-    const incomeList = document.getElementById('incomeList');
-    const expenseList = document.getElementById('expenseList');
-    const incomeTotalEl = document.getElementById('incomeTotal');
-    const expenseTotalEl = document.getElementById('expenseTotal');
-
-    const incomes = data.filter(t => t.type === 'income');
-    const expenses = data.filter(t => t.type === 'expense');
-
-    incomeList.innerHTML = incomes.length 
-        ? incomes.map(t => createTransactionHTML(t, 'income')).join('') 
-        : '<p class="empty-msg">No income yet</p>';
-    
-    expenseList.innerHTML = expenses.length 
-        ? expenses.map(t => createTransactionHTML(t, 'expense')).join('') 
-        : '<p class="empty-msg">No expenses yet</p>';
-
-    const incomeTotal = incomes.reduce((sum, t) => sum + t.amount, 0);
-    const expenseTotal = expenses.reduce((sum, t) => sum + t.amount, 0);
-    
-    incomeTotalEl.textContent = `₹${incomeTotal.toFixed(2)}`;
-    expenseTotalEl.textContent = `₹${expenseTotal.toFixed(2)}`;
-}
-
-// Create HTML for a single transaction item
-function createTransactionHTML(t, type) {
-    return `
-        <div class="transaction-item ${type}" data-id="${t.id}">
-            <div class="transaction-info">
-                <h4>${t.description}</h4>
-                <p>📅 ${formatDate(t.date)} • ${getCategoryEmoji(t.category)} ${t.category}</p>
-            </div>
-            <div class="transaction-amount">
-                ${type === 'income' ? '+' : '-'}₹${t.amount.toFixed(2)}
-            </div>
-            <div class="transaction-actions">
-                <button class="btn-edit" onclick="openEditModal('${t.id}')">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn-delete" onclick="handleDelete('${t.id}')">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-    `;
-}
-
-// Wrapper function for delete
-function handleDelete(id) {
-    deleteTransaction(id);
-}
-
-// Fixed: Delete transaction - IMMEDIATE UI UPDATE
+// Delete Transaction
 async function deleteTransaction(id) {
-    if (!confirm('Are you sure you want to delete this transaction?')) return;
-    
-    try {
-        updateSyncStatus('🗑️ Deleting...', '');
-        await db.collection('transactions').doc(id).delete();
-        
-        // Immediately update local array and re-render UI
-        transactions = transactions.filter(t => t.id !== id);
-        renderTransactions(transactions);
-        updateSummary();
-        
-        updateSyncStatus('✅ Transaction deleted!', 'synced');
-        setTimeout(() => updateSyncStatus('✅ Live synced', 'synced'), 3000);
-        
-    } catch (err) {
-        console.error('❌ Error deleting transaction:', err);
-        updateSyncStatus('❌ Delete failed', 'error');
-        alert('Failed to delete transaction. Please try again.');
+    if (confirm('Are you sure you want to delete this transaction?')) {
+        try {
+            await db.collection('transactions').doc(id).delete();
+            loadTransactions();
+        } catch (error) {
+            console.error("Error deleting:", error);
+            updateSyncStatus('Delete Failed', 'error');
+        }
     }
 }
 
-// ✅ FIXED: Open Edit Modal
+// Open Edit Modal
 function openEditModal(id) {
     const transaction = transactions.find(t => t.id === id);
     if (!transaction) return;
-    
+
     document.getElementById('editId').value = transaction.id;
     document.getElementById('editDescription').value = transaction.description;
     document.getElementById('editAmount').value = transaction.amount;
     document.getElementById('editType').value = transaction.type;
     document.getElementById('editCategory').value = transaction.category;
     document.getElementById('editDate').value = transaction.date;
-    
-    openModal('editModal');
+
+    editModal.classList.remove('hidden');
 }
 
-// ✅ FIXED: Save Edited Transaction - WITH ROBUST ERROR HANDLING
-async function saveEditedTransaction() {
+// Update Transaction
+async function updateTransaction(e) {
+    e.preventDefault();
     const id = document.getElementById('editId').value;
-    if (!id) {
-        alert('Error: Transaction ID is missing!');
-        return;
-    }
     
     const updatedData = {
-        description: document.getElementById('editDescription').value.trim(),
+        description: document.getElementById('editDescription').value,
         amount: parseFloat(document.getElementById('editAmount').value),
         type: document.getElementById('editType').value,
         category: document.getElementById('editCategory').value,
         date: document.getElementById('editDate').value,
         updatedAt: new Date().toISOString()
     };
-    
-    // Validate inputs
-    if (!updatedData.description || isNaN(updatedData.amount) || updatedData.amount <= 0) {
-        alert('Please fill in all fields correctly. Amount must be greater than 0.');
-        return;
-    }
-    
+
     try {
-        updateSyncStatus('💾 Saving changes...', '');
-        console.log('Updating transaction:', id, updatedData);
-        
-        // Update in Firebase
         await db.collection('transactions').doc(id).update(updatedData);
-        console.log('✅ Successfully updated in Firebase');
-        
-        // Update local array immediately for instant UI feedback
-        const index = transactions.findIndex(t => t.id === id);
-        if (index !== -1) {
-            transactions[index] = { ...transactions[index], ...updatedData };
-            renderTransactions(transactions);
-            updateSummary();
-        }
-        
-        closeModal('editModal');
-        updateSyncStatus('✅ Transaction updated!', 'synced');
-        setTimeout(() => updateSyncStatus('✅ Live synced', 'synced'), 3000);
-        
-    } catch (err) {
-        console.error('❌ Error updating transaction:', err);
-        
-        let errorMsg = 'Failed to update transaction.\n\n';
-        if (err.code === 'permission-denied') {
-            errorMsg += 'Permission Error: Firebase rules block updates.\n' +
-                       'Go to Firebase Console → Firestore → Rules → Paste: allow read, write: if true;';
-        } else if (err.code === 'not-found') {
-            errorMsg += 'Transaction not found in database. It may have been deleted already.';
-        } else {
-            errorMsg += err.message;
-        }
-        
-        alert(errorMsg);
-        updateSyncStatus('❌ Update failed', 'error');
+        editModal.classList.add('hidden');
+        loadTransactions();
+    } catch (error) {
+        console.error("Error updating:", error);
+        updateSyncStatus('Update Failed', 'error');
     }
 }
 
-// ✅ NEW: Save Backup Feature
-function saveBackup() {
-    const backupData = {
-        exportDate: new Date().toISOString(),
-        userId: userId,
-        totalTransactions: transactions.length,
-        transactions: transactions
-    };
-    
-    const backupJSON = JSON.stringify(backupData, null, 2);
-    const blob = new Blob([backupJSON], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `expense_backup_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    
-    updateSyncStatus('💾 Backup saved!', 'synced');
-    setTimeout(() => updateSyncStatus('✅ Live synced', 'synced'), 3000);
-}
-
-// ✅ NEW: Load Backup Feature
-function loadBackup() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    
-    input.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        if (!confirm('⚠️ This will replace all current transactions with the backup data. Continue?')) {
-            return;
-        }
-        
+// Clear All Data
+async function clearAllData() {
+    if (confirm('WARNING: This will delete ALL your transactions. This cannot be undone. Continue?')) {
         try {
-            updateSyncStatus('📂 Loading backup...', '');
-            
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-                try {
-                    const backupData = JSON.parse(event.target.result);
-                    
-                    // Clear current data in Firebase
-                    const snapshot = await db.collection('transactions')
-                        .where('userId', '==', userId)
-                        .get();
-                    const batch = db.batch();
-                    snapshot.forEach(doc => batch.delete(doc.ref));
-                    await batch.commit();
-                    
-                    // Restore backup data to Firebase
-                    if (backupData.transactions && backupData.transactions.length > 0) {
-                        const batch = db.batch();
-                        backupData.transactions.forEach(t => {
-                            const docRef = db.collection('transactions').doc();
-                            batch.set(docRef, { ...t, userId: userId });
-                        });
-                        await batch.commit();
-                    }
-                    
-                    updateSyncStatus('✅ Backup restored!', 'synced');
-                    setTimeout(() => updateSyncStatus('✅ Live synced', 'synced'), 3000);
-                    
-                } catch (err) {
-                    console.error('Error loading backup:', err);
-                    alert('❌ Invalid backup file!');
-                    updateSyncStatus('❌ Load failed', 'error');
-                }
-            };
-            reader.readAsText(file);
-            
-        } catch (err) {
-            console.error('Error loading backup:', err);
-            updateSyncStatus('❌ Load failed', 'error');
+            const batch = db.batch();
+            transactions.forEach(t => {
+                const docRef = db.collection('transactions').doc(t.id);
+                batch.delete(docRef);
+            });
+            await batch.commit();
+            transactions = [];
+            renderTransactions();
+            updateSyncStatus('All Data Cleared', 'synced');
+        } catch (error) {
+            console.error("Error clearing data:", error);
+            updateSyncStatus('Clear Failed', 'error');
         }
-    };
-    
-    input.click();
+    }
 }
 
-// Filter and render transactions
-function filterAndRender() {
-    const search = document.getElementById('searchInput').value.toLowerCase();
-    const monthFilter = document.getElementById('filterMonth').value;
-    
+// ================= RENDERING & FILTERING =================
+
+// Render Main Transactions
+function renderTransactions() {
+    const searchTerm = searchInput.value.toLowerCase();
+    const monthFilter = filterMonth.value;
+
+    // Filter Logic
     let filtered = transactions.filter(t => {
-        const matchSearch = t.description.toLowerCase().includes(search) || 
-                           t.category.toLowerCase().includes(search);
+        // 1. Search Filter
+        const matchesSearch = t.description.toLowerCase().includes(searchTerm) || 
+                              t.category.toLowerCase().includes(searchTerm);
         
-        let matchMonth = true;
+        // 2. Month Filter
+        let matchesMonth = true;
         if (monthFilter === 'current') {
             const now = new Date();
             const tDate = new Date(t.date);
-            matchMonth = tDate.getMonth() === now.getMonth() && 
-                        tDate.getFullYear() === now.getFullYear();
+            matchesMonth = tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
         } else if (monthFilter === 'last') {
             const now = new Date();
             const tDate = new Date(t.date);
             const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
             const lastYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-            matchMonth = tDate.getMonth() === lastMonth && tDate.getFullYear() === lastYear;
+            matchesMonth = tDate.getMonth() === lastMonth && tDate.getFullYear() === lastYear;
         }
-        
-        return matchSearch && matchMonth;
+
+        return matchesSearch && matchesMonth;
     });
+
+    // Split Income and Expenses
+    const incomeData = filtered.filter(t => t.type === 'income');
+    const expenseData = filtered.filter(t => t.type === 'expense');
+
+    // Render HTML
+    incomeList.innerHTML = incomeData.length ? incomeData.map(createTransactionHTML).join('') : '<p class="empty-msg">No income found</p>';
+    expenseList.innerHTML = expenseData.length ? expenseData.map(createTransactionHTML).join('') : '<p class="empty-msg">No expenses found</p>';
+
+    // Update Totals
+    const totalIncome = incomeData.reduce((sum, t) => sum + t.amount, 0);
+    const totalExpense = expenseData.reduce((sum, t) => sum + t.amount, 0);
     
-    renderTransactions(filtered);
+    totalIncomeEl.textContent = `₹${totalIncome.toFixed(2)}`;
+    totalExpenseEl.textContent = `₹${totalExpense.toFixed(2)}`;
+    balanceEl.textContent = `₹${(totalIncome - totalExpense).toFixed(2)}`;
 }
 
-// Update summary cards
-function updateSummary() {
-    const inc = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-    const exp = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-    const balance = inc - exp;
-    
-    document.getElementById('totalIncome').textContent = `₹${inc.toFixed(2)}`;
-    document.getElementById('totalExpense').textContent = `₹${exp.toFixed(2)}`;
-    document.getElementById('balance').textContent = `₹${balance.toFixed(2)}`;
-}
-
-// ✅ IMPROVED CSV Export
-function exportToCSV() {
-    const incomes = transactions.filter(t => t.type === 'income');
-    const expenses = transactions.filter(t => t.type === 'expense');
-    const incomeTotal = incomes.reduce((sum, t) => sum + t.amount, 0);
-    const expenseTotal = expenses.reduce((sum, t) => sum + t.amount, 0);
-    const balance = incomeTotal - expenseTotal;
-
-    const csvEscape = (val) => {
-        if (val === null || val === undefined) return '';
-        const str = String(val);
-        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-            return `"${str.replace(/"/g, '""')}"`;
-        }
-        return str;
-    };
-
-    let csvRows = [];
-    csvRows.push([csvEscape('Expense Tracker Report')]);
-    csvRows.push([csvEscape(`Generated: ${new Date().toLocaleDateString('en-IN')}`)]);
-    csvRows.push([]);
-    
-    csvRows.push([csvEscape('INCOME TRANSACTIONS')]);
-    csvRows.push([csvEscape('Date'), csvEscape('Description'), csvEscape('Category'), csvEscape('Amount')]);
-    incomes.forEach(t => {
-        csvRows.push([csvEscape(t.date), csvEscape(t.description), csvEscape(t.category), csvEscape(`₹${t.amount.toFixed(2)}`)]);
-    });
-    csvRows.push([]);
-    csvRows.push([csvEscape(''), csvEscape(''), csvEscape('Total Income'), csvEscape(`₹${incomeTotal.toFixed(2)}`)]);
-    csvRows.push([]); csvRows.push([]);
-    
-    csvRows.push([csvEscape('EXPENSE TRANSACTIONS')]);
-    csvRows.push([csvEscape('Date'), csvEscape('Description'), csvEscape('Category'), csvEscape('Amount')]);
-    expenses.forEach(t => {
-        csvRows.push([csvEscape(t.date), csvEscape(t.description), csvEscape(t.category), csvEscape(`₹${t.amount.toFixed(2)}`)]);
-    });
-    csvRows.push([]);
-    csvRows.push([csvEscape(''), csvEscape(''), csvEscape('Total Expenses'), csvEscape(`₹${expenseTotal.toFixed(2)}`)]);
-    csvRows.push([]); csvRows.push([]);
-    
-    csvRows.push([csvEscape('SUMMARY')]);
-    csvRows.push([csvEscape('Total Income'), csvEscape(''), csvEscape(''), csvEscape(`₹${incomeTotal.toFixed(2)}`)]);
-    csvRows.push([csvEscape('Total Expenses'), csvEscape(''), csvEscape(''), csvEscape(`₹${expenseTotal.toFixed(2)}`)]);
-    csvRows.push([csvEscape('Balance'), csvEscape(''), csvEscape(''), csvEscape(`₹${balance.toFixed(2)}`)]);
-    csvRows.push([csvEscape('Total Transactions'), csvEscape(''), csvEscape(''), csvEscape(transactions.length)]);
-
-    const csvContent = csvRows.map(row => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `expenses_report_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-}
-
-// ✅ FIXED PDF Export - Uses Rs. to fix alignment issues
-function exportToPDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    
-    const incomes = transactions.filter(t => t.type === 'income');
-    const expenses = transactions.filter(t => t.type === 'expense');
-    const incomeTotal = incomes.reduce((sum, t) => sum + t.amount, 0);
-    const expenseTotal = expenses.reduce((sum, t) => sum + t.amount, 0);
-    const balance = incomeTotal - expenseTotal;
-
-    doc.setFontSize(22);
-    doc.setTextColor(102, 126, 234);
-    doc.text('Expense Tracker Report', 105, 15, { align: 'center' });
-    doc.setFontSize(11);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Generated: ${new Date().toLocaleDateString('en-IN')}`, 105, 22, { align: 'center' });
-
-    let currentY = 35;
-
-    doc.setFontSize(14);
-    doc.setTextColor(67, 233, 123);
-    doc.text('INCOME TRANSACTIONS', 14, currentY);
-    currentY += 8;
-    
-    const tableColumn = ["Date", "Description", "Category", "Amount"];
-    const incomeTableRows = incomes.map(t => [
-        t.date,
-        t.description.length > 30 ? t.description.substring(0, 27) + '...' : t.description,
-        t.category,
-        `Rs. ${t.amount.toFixed(2)}`
-    ]);
-
-    doc.autoTable({
-        head: [tableColumn], body: incomeTableRows, startY: currentY, theme: 'grid',
-        headStyles: { fillColor: [67, 233, 123], textColor: 255, fontStyle: 'bold', halign: 'center', fontSize: 10 },
-        styles: { fontSize: 9, cellPadding: 4, overflow: 'linebreak', lineWidth: 0.1 },
-        columnStyles: { 0: { cellWidth: 30, halign: 'center' }, 1: { cellWidth: 70 }, 2: { cellWidth: 40, halign: 'center' }, 3: { halign: 'right', fontStyle: 'bold', cellWidth: 36 } },
-        margin: { left: 14, right: 14 }
-    });
-
-    currentY = doc.lastAutoTable.finalY + 6;
-    doc.setFontSize(11);
-    doc.setTextColor(67, 233, 123);
-    doc.text(`Total Income: Rs. ${incomeTotal.toFixed(2)}`, 14, currentY);
-    currentY += 15;
-
-    doc.setFontSize(14);
-    doc.setTextColor(250, 112, 154);
-    doc.text('EXPENSE TRANSACTIONS', 14, currentY);
-    currentY += 8;
-    
-    const expenseTableRows = expenses.map(t => [
-        t.date,
-        t.description.length > 30 ? t.description.substring(0, 27) + '...' : t.description,
-        t.category,
-        `Rs. ${t.amount.toFixed(2)}`
-    ]);
-
-    doc.autoTable({
-        head: [tableColumn], body: expenseTableRows, startY: currentY, theme: 'grid',
-        headStyles: { fillColor: [250, 112, 154], textColor: 255, fontStyle: 'bold', halign: 'center', fontSize: 10 },
-        styles: { fontSize: 9, cellPadding: 4, overflow: 'linebreak', lineWidth: 0.1 },
-        columnStyles: { 0: { cellWidth: 30, halign: 'center' }, 1: { cellWidth: 70 }, 2: { cellWidth: 40, halign: 'center' }, 3: { halign: 'right', fontStyle: 'bold', cellWidth: 36 } },
-        margin: { left: 14, right: 14 }
-    });
-
-    currentY = doc.lastAutoTable.finalY + 6;
-    doc.setFontSize(11);
-    doc.setTextColor(250, 112, 154);
-    doc.text(`Total Expenses: Rs. ${expenseTotal.toFixed(2)}`, 14, currentY);
-    currentY += 15;
-
-    doc.setFontSize(14);
-    doc.setTextColor(102, 126, 234);
-    doc.text('SUMMARY', 14, currentY);
-    currentY += 8;
-    
-    const summaryData = [
-        ['Total Income', `Rs. ${incomeTotal.toFixed(2)}`],
-        ['Total Expenses', `Rs. ${expenseTotal.toFixed(2)}`],
-        ['Balance', `Rs. ${balance.toFixed(2)}`],
-        ['Total Transactions', `${transactions.length}`]
-    ];
-
-    doc.autoTable({
-        body: summaryData, startY: currentY, theme: 'grid',
-        styles: { fontSize: 10, cellPadding: 6, halign: 'left', lineWidth: 0.2, fillColor: [255, 255, 255], overflow: 'linebreak' },
-        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 95, fillColor: [245, 248, 255], halign: 'left', textColor: [50, 50, 50] }, 1: { fontStyle: 'bold', halign: 'right', cellWidth: 65, fillColor: [245, 248, 255], textColor: [50, 50, 50] } },
-        margin: { left: 14, right: 14 }, tableWidth: 155
-    });
-
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(9);
-        doc.setTextColor(150, 150, 150);
-        doc.text(`Powered by @IAC - Page ${i} of ${pageCount}`, 105, 290, { align: 'center' });
-    }
-
-    doc.save('expense_report.pdf');
-}
-
-// Modal functions
-function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
-function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-
-// Generate date range preview
-function generateDatePreview() {
-    const from = document.getElementById('fromDate').value;
-    const to = document.getElementById('toDate').value;
-    if (!from || !to) { alert('Please select both dates'); return; }
-
-    const filtered = transactions.filter(t => t.date >= from && t.date <= to);
-    const resultDiv = document.getElementById('previewResult');
-    resultDiv.classList.remove('hidden');
-    resultDiv.innerHTML = `<h3 style="text-align:center;margin-bottom:20px;color:#667eea;">📅 Preview: ${formatDate(from)} to ${formatDate(to)}</h3>`;
-    
-    const tempDiv = document.createElement('div');
-    tempDiv.className = 'columns-wrapper preview-columns';
-    tempDiv.innerHTML = `
-        <div class="column income-column"><h3><i class="fas fa-arrow-down"></i> Income</h3><div id="previewIncome"></div><div class="column-total">Total: <span id="previewIncomeTotal"></span></div></div>
-        <div class="column expense-column"><h3><i class="fas fa-arrow-up"></i> Expenses</h3><div id="previewExpense"></div><div class="column-total">Total: <span id="previewExpenseTotal"></span></div></div>
+// Create HTML for Transaction Item
+function createTransactionHTML(t) {
+    return `
+        <div class="transaction-item ${t.type}">
+            <div class="transaction-info">
+                <h4>${t.description}</h4>
+                <p>${formatDate(t.date)} • ${getCategoryEmoji(t.category)} ${t.category}</p>
+            </div>
+            <div class="transaction-amount">${t.type === 'income' ? '+' : '-'}₹${t.amount.toFixed(2)}</div>
+            <div class="transaction-actions">
+                <button class="btn-edit" onclick="openEditModal('${t.id}')"><i class="fas fa-edit"></i></button>
+                <button class="btn-delete" onclick="deleteTransaction('${t.id}')"><i class="fas fa-trash"></i></button>
+            </div>
+        </div>
     `;
-    resultDiv.appendChild(tempDiv);
-
-    const incomes = filtered.filter(t => t.type === 'income');
-    const expenses = filtered.filter(t => t.type === 'expense');
-
-    document.getElementById('previewIncome').innerHTML = incomes.map(t => createTransactionHTML(t, 'income')).join('') || '<p class="empty-msg">No income</p>';
-    document.getElementById('previewExpense').innerHTML = expenses.map(t => createTransactionHTML(t, 'expense')).join('') || '<p class="empty-msg">No expenses</p>';
-    document.getElementById('previewIncomeTotal').textContent = `₹${incomes.reduce((s,t)=>s+t.amount,0).toFixed(2)}`;
-    document.getElementById('previewExpenseTotal').textContent = `₹${expenses.reduce((s,t)=>s+t.amount,0).toFixed(2)}`;
-    
-    closeModal('dateRangeModal');
 }
 
-// Clear all data
-async function clearAllData() {
-    if (!confirm('⚠️ Delete ALL transactions? This cannot be undone!')) return;
-    try {
-        const snapshot = await db.collection('transactions').where('userId', '==', userId).get();
-        const batch = db.batch();
-        snapshot.forEach(doc => batch.delete(doc.ref));
-        await batch.commit();
-        updateSyncStatus('✅ All data cleared', 'synced');
-    } catch (err) {
-        console.error('Error clearing:', err);
-        updateSyncStatus('❌ Clear failed', 'error');
-    }
-}
-
-// Format date
-function formatDate(dateStr) {
-    return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-// Get category emoji
+// Helper: Category Emojis
 function getCategoryEmoji(cat) {
     const emojis = {
-        food: '🍔', transport: '🚗', shopping: '🛍️', bills: '📄',
-        entertainment: '🎬', health: '🏥', salary: '💼', investment: '📈', other: '📦'
+        food: '🍔', transport: '🚗', shopping: '🛍️', bills: '📄', 
+        entertainment: '🎬', health: '🏥', salary: '💼', investment: '📈', 
+        other: '📦', vegetables: '🥬', provision: '🛒', petrol: '⛽', hotel: '🏨', beauty: '💄'
     };
     return emojis[cat] || '📦';
 }
 
-// Update sync status
-function updateSyncStatus(msg, status) {
-    const el = document.getElementById('syncStatus');
-    document.getElementById('syncText').textContent = msg;
-    el.className = 'sync-status ' + status;
+// Helper: Format Date
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
+
+// ================= DATE RANGE PREVIEW =================
+
+function generateDateRangePreview() {
+    const fromDate = document.getElementById('fromDate').value;
+    const toDate = document.getElementById('toDate').value;
+
+    if (!fromDate || !toDate) {
+        alert("Please select both From and To dates.");
+        return;
+    }
+
+    const start = new Date(fromDate);
+    const end = new Date(toDate);
+    end.setHours(23, 59, 59, 999); // Include the whole end day
+
+    const filtered = transactions.filter(t => {
+        const tDate = new Date(t.date);
+        return tDate >= start && tDate <= end;
+    });
+
+    // Render Preview Section
+    previewResult.classList.remove('hidden');
+    
+    const incomeData = filtered.filter(t => t.type === 'income');
+    const expenseData = filtered.filter(t => t.type === 'expense');
+
+    const previewHTML = `
+        <h3 style="text-align:center; color:#667eea; margin-bottom:20px;">
+            Preview: ${formatDate(fromDate)} to ${formatDate(toDate)}
+        </h3>
+        <div class="preview-columns">
+            <div class="column income-column">
+                <h3><i class="fas fa-arrow-down"></i> Income</h3>
+                ${incomeData.length ? incomeData.map(createTransactionHTML).join('') : '<p class="empty-msg">No income</p>'}
+                <div class="column-total">Total: ₹${incomeData.reduce((s,t)=>s+t.amount,0).toFixed(2)}</div>
+            </div>
+            <div class="column expense-column">
+                <h3><i class="fas fa-arrow-up"></i> Expenses</h3>
+                ${expenseData.length ? expenseData.map(createTransactionHTML).join('') : '<p class="empty-msg">No expenses</p>'}
+                <div class="column-total">Total: ₹${expenseData.reduce((s,t)=>s+t.amount,0).toFixed(2)}</div>
+            </div>
+        </div>
+    `;
+
+    // Insert into the preview container
+    previewResult.innerHTML = previewHTML;
+    
+    // Close Modal
+    dateRangeModal.classList.add('hidden');
+}
+
+// ================= EXPORT & BACKUP =================
+
+// Export to PDF
+function exportToPDF() {
+    if (transactions.length === 0) {
+        alert("No transactions to export!");
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFontSize(20);
+    doc.text("Expense Report", 14, 20);
+    doc.setFontSize(12);
+    doc.text(`User: ${userEmail}`, 14, 30);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 36);
+
+    const tableData = transactions.map(t => [
+        formatDate(t.date),
+        t.description,
+        t.category,
+        t.type === 'income' ? `+${t.amount}` : `-${t.amount}`
+    ]);
+
+    doc.autoTable({
+        startY: 45,
+        head: [['Date', 'Description', 'Category', 'Amount']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [102, 126, 234] }
+    });
+
+    doc.save(`Expense_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+// Export to CSV
+function exportToCSV() {
+    if (transactions.length === 0) {
+        alert("No transactions to export!");
+        return;
+    }
+
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Date,Description,Category,Type,Amount\n";
+
+    transactions.forEach(t => {
+        const row = `${t.date},"${t.description}",${t.category},${t.type},${t.amount}`;
+        csvContent += row + "\n";
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "transactions.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// Save Backup (JSON)
+function saveBackup() {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(transactions));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `backup_${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+}
+
+// Load Backup (JSON)
+function loadBackup(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async function(event) {
+        try {
+            const importedData = JSON.parse(event.target.result);
+            if (!Array.isArray(importedData)) throw new Error("Invalid format");
+
+            const batch = db.batch();
+            let count = 0;
+
+            importedData.forEach(item => {
+                // Add userEmail to imported items if missing
+                item.userEmail = userEmail;
+                const docRef = db.collection('transactions').doc();
+                batch.set(docRef, item);
+                count++;
+            });
+
+            await batch.commit();
+            alert(`Successfully restored ${count} transactions!`);
+            loadTransactions();
+        } catch (error) {
+            alert("Error loading backup: " + error.message);
+        }
+    };
+    reader.readAsText(file);
+    // Reset input so same file can be selected again
+    e.target.value = ''; 
+}
+
+// ================= UTILITIES =================
+
+function updateSyncStatus(message, statusClass) {
+    syncTextEl.textContent = message;
+    syncStatusEl.className = `sync-status ${statusClass}`;
+}
+
+// Initialize on Load
+document.addEventListener('DOMContentLoaded', initApp);
