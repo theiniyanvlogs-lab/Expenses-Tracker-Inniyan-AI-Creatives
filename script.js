@@ -106,7 +106,6 @@ async function loadTransactions() {
     try {
         // 'db' comes from firebase-config.js
         const snapshot = await db.collection('transactions')
-            .where('userEmail', '==', userEmail)
             .orderBy('date', 'desc')
             .get();
 
