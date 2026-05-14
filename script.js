@@ -1,5 +1,6 @@
 // Global Variables
 let transactions = [];
+// Note: 'db' is already defined in firebase-config.js - DO NOT redeclare it
 
 // DOM Elements
 const transactionForm = document.getElementById('transactionForm');
@@ -37,10 +38,20 @@ loadBackupInput.accept = '.json';
 loadBackupInput.style.display = 'none';
 document.body.appendChild(loadBackupInput);
 
+// Global variables for date range filtering
+let globalFromDate = '';
+let globalToDate = '';
+
 // ================= INITIALIZATION =================
 
 // Initialize App - NO EMAIL AUTHENTICATION
 function initApp() {
+    // Wait a moment for firebase-config.js to load db
+    if (typeof db === 'undefined') {
+        console.log('Waiting for Firebase...');
+        setTimeout(initApp, 500);
+        return;
+    }
     loadTransactions();
     setupEventListeners();
 }
@@ -60,7 +71,7 @@ function setupEventListeners() {
         if (e.target === editModal) editModal.classList.add('hidden');
     });
     
-    // FIX: Add click event for save button
+    // FIX: Add click event for save button (since button type="button")
     document.getElementById('saveEditBtn').addEventListener('click', updateTransaction);
 
     // Date Range Preview Modal
@@ -79,11 +90,12 @@ function setupEventListeners() {
     loadBackupInput.addEventListener('change', loadBackup);
     clearBtn.addEventListener('click', clearAllData);
 }
+
 // ================= FIREBASE OPERATIONS =================
 
 // Load Transactions - NO EMAIL FILTER
 async function loadTransactions() {
-    updateSyncStatus('Syncing...', '');
+    updateSyncStatus('🔄 Syncing...', '');
     try {
         const snapshot = await db.collection('transactions')
             .orderBy('date', 'desc')
@@ -92,17 +104,17 @@ async function loadTransactions() {
         transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
         renderTransactions();
-        updateSyncStatus('Synced', 'synced');
+        updateSyncStatus('✅ Live synced', 'synced');
     } catch (error) {
         console.error("Error loading transactions:", error);
-        updateSyncStatus('Error: ' + error.message, 'error');
+        updateSyncStatus('❌ Error: ' + error.message, 'error');
     }
 }
 
 // Add Transaction - NO EMAIL
 async function addTransaction(e) {
     e.preventDefault();
-    updateSyncStatus('Saving...', '');
+    updateSyncStatus('💾 Saving...', '');
 
     const newTransaction = {
         description: document.getElementById('description').value,
@@ -120,7 +132,8 @@ async function addTransaction(e) {
         loadTransactions();
     } catch (error) {
         console.error("Error adding transaction:", error);
-        updateSyncStatus('Save Failed', 'error');
+        updateSyncStatus('❌ Save Failed', 'error');
+        alert('Failed to save. Check console for details.');
     }
 }
 
@@ -130,9 +143,11 @@ async function deleteTransaction(id) {
         try {
             await db.collection('transactions').doc(id).delete();
             loadTransactions();
+            updateSyncStatus('✅ Deleted', 'synced');
         } catch (error) {
             console.error("Error deleting:", error);
-            updateSyncStatus('Delete Failed', 'error');
+            updateSyncStatus('❌ Delete Failed', 'error');
+            alert('Failed to delete transaction.');
         }
     }
 }
@@ -152,7 +167,7 @@ function openEditModal(id) {
     editModal.classList.remove('hidden');
 }
 
-// Update Transaction
+// Update Transaction - FIXED with set() + merge
 async function updateTransaction(e) {
     e.preventDefault();
     const id = document.getElementById('editId').value;
@@ -167,18 +182,22 @@ async function updateTransaction(e) {
     };
 
     try {
-        await db.collection('transactions').doc(id).update(updatedData);
+        // Use set with merge - works for both new and existing documents
+        await db.collection('transactions').doc(id).set(updatedData, { merge: true });
+        
         editModal.classList.add('hidden');
         loadTransactions();
+        updateSyncStatus('✅ Updated', 'synced');
     } catch (error) {
         console.error("Error updating:", error);
-        updateSyncStatus('Update Failed', 'error');
+        updateSyncStatus('❌ Update Failed', 'error');
+        alert('Failed to update. Try deleting and adding again.');
     }
 }
 
 // Clear All Data
 async function clearAllData() {
-    if (confirm('WARNING: This will delete ALL your transactions. This cannot be undone. Continue?')) {
+    if (confirm('⚠️ WARNING: This will delete ALL your transactions. This cannot be undone. Continue?')) {
         try {
             const batch = db.batch();
             transactions.forEach(t => {
@@ -188,10 +207,11 @@ async function clearAllData() {
             await batch.commit();
             transactions = [];
             renderTransactions();
-            updateSyncStatus('All Data Cleared', 'synced');
+            updateSyncStatus('✅ All data cleared', 'synced');
         } catch (error) {
             console.error("Error clearing data:", error);
-            updateSyncStatus('Clear Failed', 'error');
+            updateSyncStatus('❌ Clear Failed', 'error');
+            alert('Failed to clear data.');
         }
     }
 }
@@ -251,10 +271,16 @@ function createTransactionHTML(t) {
                 <h4>${t.description}</h4>
                 <p>${formatDate(t.date)} • ${getCategoryEmoji(t.category)} ${t.category}</p>
             </div>
-            <div class="transaction-amount">${t.type === 'income' ? '+' : '-'}₹${t.amount.toFixed(2)}</div>
+            <div class="transaction-amount">
+                ${t.type === 'income' ? '+' : '-'}₹${t.amount.toFixed(2)}
+            </div>
             <div class="transaction-actions">
-                <button class="btn-edit" onclick="openEditModal('${t.id}')"><i class="fas fa-edit"></i></button>
-                <button class="btn-delete" onclick="deleteTransaction('${t.id}')"><i class="fas fa-trash"></i></button>
+                <button class="btn-edit" onclick="openEditModal('${t.id}')">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn-delete" onclick="deleteTransaction('${t.id}')">
+                    <i class="fas fa-trash"></i>
+                </button>
             </div>
         </div>
     `;
@@ -272,8 +298,12 @@ function getCategoryEmoji(cat) {
 
 // Helper: Format Date
 function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    if (!dateString) return '';
+    const date = new Date(dateString + 'T00:00:00');
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
 }
 
 // ================= DATE RANGE PREVIEW =================
@@ -283,16 +313,16 @@ function generateDateRangePreview() {
     const toDate = document.getElementById('toDate').value;
 
     if (!fromDate || !toDate) {
-        alert("Please select both From and To dates.");
+        alert("⚠️ Please select both From and To dates.");
         return;
     }
 
-    const start = new Date(fromDate);
-    const end = new Date(toDate);
+    const start = new Date(fromDate + 'T00:00:00');
+    const end = new Date(toDate + 'T00:00:00');
     end.setHours(23, 59, 59, 999);
 
     const filtered = transactions.filter(t => {
-        const tDate = new Date(t.date);
+        const tDate = new Date(t.date + 'T00:00:00');
         return tDate >= start && tDate <= end;
     });
 
@@ -303,7 +333,7 @@ function generateDateRangePreview() {
 
     const previewHTML = `
         <h3 style="text-align:center; color:#667eea; margin-bottom:20px;">
-            Preview: ${formatDate(fromDate)} to ${formatDate(toDate)}
+            📅 Preview: ${formatDate(fromDate)} to ${formatDate(toDate)}
         </h3>
         <div class="preview-columns">
             <div class="column income-column">
@@ -325,17 +355,13 @@ function generateDateRangePreview() {
 
 // ================= EXPORT & BACKUP =================
 
-// Global variables to store date range
-let globalFromDate = '';
-let globalToDate = '';
-
-// Export to PDF - IMPROVED VERSION
+// Export to PDF - IMPROVED VERSION with date range & totals
 function exportToPDF() {
     // Filter transactions based on selected date range
     let filteredTransactions = [...transactions];
     let dateRangeText = 'All Time';
     
-    // Check if date range is selected (from the Preview modal or global vars)
+    // Check if date range is selected
     const fromDateInput = document.getElementById('fromDate')?.value;
     const toDateInput = document.getElementById('toDate')?.value;
     
@@ -345,12 +371,12 @@ function exportToPDF() {
     }
     
     if (globalFromDate && globalToDate) {
-        const start = new Date(globalFromDate);
-        const end = new Date(globalToDate);
+        const start = new Date(globalFromDate + 'T00:00:00');
+        const end = new Date(globalToDate + 'T00:00:00');
         end.setHours(23, 59, 59, 999);
         
         filteredTransactions = transactions.filter(t => {
-            const tDate = new Date(t.date);
+            const tDate = new Date(t.date + 'T00:00:00');
             return tDate >= start && tDate <= end;
         });
         
@@ -358,7 +384,7 @@ function exportToPDF() {
     }
     
     if (filteredTransactions.length === 0) {
-        alert("No transactions to export for the selected period!");
+        alert("⚠️ No transactions to export for the selected period!");
         return;
     }
 
@@ -368,7 +394,7 @@ function exportToPDF() {
     // ===== HEADER =====
     doc.setFontSize(22);
     doc.setTextColor(102, 126, 234);
-    doc.text("Expense Tracker Report", 105, 20, { align: 'center' });
+    doc.text("Stitches by S: Financial Report", 105, 20, { align: 'center' });
     
     // Date range
     doc.setFontSize(12);
@@ -405,13 +431,13 @@ function exportToPDF() {
     // Transaction count
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
-    doc.text(`Total Transactions: ${filteredTransactions.length}`, 140, 48);
+    doc.text(`Transactions: ${filteredTransactions.length}`, 140, 48);
 
     // ===== TABLE =====
     const tableData = filteredTransactions.map(t => [
         formatDate(t.date),
         t.description,
-        t.category.charAt(0).toUpperCase() + t.category.slice(1), // Capitalize category
+        t.category.charAt(0).toUpperCase() + t.category.slice(1),
         t.type === 'income' ? `+${t.amount.toFixed(2)}` : `-${t.amount.toFixed(2)}`
     ]);
 
@@ -471,20 +497,21 @@ function exportToPDF() {
 
     // Save PDF
     const fileName = globalFromDate && globalToDate 
-        ? `Expense_Report_${globalFromDate}_to_${globalToDate}.pdf`
-        : `Expense_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+        ? `StitchesByS_Report_${globalFromDate}_to_${globalToDate}.pdf`
+        : `StitchesByS_Report_${new Date().toISOString().split('T')[0]}.pdf`;
     
     doc.save(fileName);
+    updateSyncStatus('📄 PDF exported!', 'synced');
 }
 
 // Export to CSV
 function exportToCSV() {
     if (transactions.length === 0) {
-        alert("No transactions to export!");
+        alert("⚠️ No transactions to export!");
         return;
     }
 
-    let csvContent = "text/csv;charset=utf-8,";
+    let csvContent = "data:text/csv;charset=utf-8,";
     csvContent += "Date,Description,Category,Type,Amount\n";
 
     transactions.forEach(t => {
@@ -495,10 +522,12 @@ function exportToCSV() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "transactions.csv");
+    link.setAttribute("download", `transactions_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    
+    updateSyncStatus('📊 CSV exported!', 'synced');
 }
 
 // Save Backup (JSON) - FIXED
@@ -512,10 +541,12 @@ function saveBackup() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `backup_${new Date().toISOString().split('T')[0]}.json`);
+    downloadAnchorNode.setAttribute("download", `stitches_backup_${new Date().toISOString().split('T')[0]}.json`);
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
+    
+    updateSyncStatus('💾 Backup saved!', 'synced');
 }
 
 // Load Backup (JSON) - FIXED
@@ -539,14 +570,16 @@ function loadBackup(e) {
             }
 
             if (importedData.length === 0) {
-                alert("No transactions found in backup file");
+                alert("⚠️ No transactions found in backup file");
                 return;
             }
 
-            if (!confirm(`This will import ${importedData.length} transactions. Continue?`)) {
+            if (!confirm(`⚠️ This will import ${importedData.length} transactions. Continue?`)) {
                 return;
             }
 
+            updateSyncStatus('📂 Importing...', '');
+            
             const batch = db.batch();
             let count = 0;
 
@@ -572,9 +605,11 @@ function loadBackup(e) {
             await batch.commit();
             alert(`✅ Successfully imported ${count} transactions!`);
             loadTransactions();
+            updateSyncStatus('✅ Import complete', 'synced');
         } catch (error) {
             console.error("Load backup error:", error);
             alert("❌ Error loading backup: " + error.message);
+            updateSyncStatus('❌ Import failed', 'error');
         }
         
         // Reset input
