@@ -1,7 +1,6 @@
 // Global Variables
 let transactions = [];
-let userEmail = null;
-// REMOVED: let db; (Because it is already defined in firebase-config.js)
+let db; // Firebase Firestore instance (comes from firebase-config.js)
 
 // DOM Elements
 const transactionForm = document.getElementById('transactionForm');
@@ -41,28 +40,10 @@ document.body.appendChild(loadBackupInput);
 
 // ================= INITIALIZATION =================
 
-// Initialize App
+// Initialize App - NO EMAIL AUTHENTICATION
 function initApp() {
-    checkAuth();
+    loadTransactions();
     setupEventListeners();
-}
-
-// Check Authentication (Simple Prompt for Demo)
-function checkAuth() {
-    const storedEmail = localStorage.getItem('stitches_user_email');
-    if (storedEmail) {
-        userEmail = storedEmail;
-        loadTransactions();
-    } else {
-        const email = prompt("Enter your email to access your ");
-        if (email) {
-            userEmail = email.trim();
-            localStorage.setItem('stitches_user_email', userEmail);
-            loadTransactions();
-        } else {
-            updateSyncStatus('Authentication required', 'error');
-        }
-    }
 }
 
 // Setup Event Listeners
@@ -89,7 +70,7 @@ function setupEventListeners() {
     });
     generatePreviewBtn.addEventListener('click', generateDateRangePreview);
 
-    // Action Buttons (These will work now!)
+    // Action Buttons
     exportCsvBtn.addEventListener('click', exportToCSV);
     exportPdfBtn.addEventListener('click', exportToPDF);
     saveBackupBtn.addEventListener('click', saveBackup);
@@ -100,11 +81,10 @@ function setupEventListeners() {
 
 // ================= FIREBASE OPERATIONS =================
 
-// Load Transactions
+// Load Transactions - NO EMAIL FILTER
 async function loadTransactions() {
     updateSyncStatus('Syncing...', '');
     try {
-        // 'db' comes from firebase-config.js
         const snapshot = await db.collection('transactions')
             .orderBy('date', 'desc')
             .get();
@@ -119,7 +99,7 @@ async function loadTransactions() {
     }
 }
 
-// Add Transaction
+// Add Transaction - NO EMAIL
 async function addTransaction(e) {
     e.preventDefault();
     updateSyncStatus('Saving...', '');
@@ -130,14 +110,12 @@ async function addTransaction(e) {
         type: document.getElementById('type').value,
         category: document.getElementById('category').value,
         date: document.getElementById('date').value,
-        userEmail: userEmail,
         createdAt: new Date().toISOString()
     };
 
     try {
         await db.collection('transactions').add(newTransaction);
         transactionForm.reset();
-        // Set default date back to today
         document.getElementById('date').valueAsDate = new Date();
         loadTransactions();
     } catch (error) {
@@ -311,14 +289,13 @@ function generateDateRangePreview() {
 
     const start = new Date(fromDate);
     const end = new Date(toDate);
-    end.setHours(23, 59, 59, 999); // Include the whole end day
+    end.setHours(23, 59, 59, 999);
 
     const filtered = transactions.filter(t => {
         const tDate = new Date(t.date);
         return tDate >= start && tDate <= end;
     });
 
-    // Render Preview Section
     previewResult.classList.remove('hidden');
     
     const incomeData = filtered.filter(t => t.type === 'income');
@@ -342,10 +319,7 @@ function generateDateRangePreview() {
         </div>
     `;
 
-    // Insert into the preview container
     previewResult.innerHTML = previewHTML;
-    
-    // Close Modal
     dateRangeModal.classList.add('hidden');
 }
 
@@ -364,8 +338,7 @@ function exportToPDF() {
     doc.setFontSize(20);
     doc.text("Expense Report", 14, 20);
     doc.setFontSize(12);
-    doc.text(`User: ${userEmail}`, 14, 30);
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 36);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 30);
 
     const tableData = transactions.map(t => [
         formatDate(t.date),
@@ -375,7 +348,7 @@ function exportToPDF() {
     ]);
 
     doc.autoTable({
-        startY: 45,
+        startY: 40,
         head: [['Date', 'Description', 'Category', 'Amount']],
         body: tableData,
         theme: 'grid',
@@ -409,9 +382,15 @@ function exportToCSV() {
     document.body.removeChild(link);
 }
 
-// Save Backup (JSON)
+// Save Backup (JSON) - FIXED
 function saveBackup() {
-    const dataStr = "text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(transactions));
+    const backupData = {
+        version: "1.0",
+        exportDate: new Date().toISOString(),
+        transactions: transactions
+    };
+    
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
     downloadAnchorNode.setAttribute("download", `backup_${new Date().toISOString().split('T')[0]}.json`);
@@ -420,7 +399,7 @@ function saveBackup() {
     downloadAnchorNode.remove();
 }
 
-// Load Backup (JSON)
+// Load Backup (JSON) - FIXED
 function loadBackup(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -428,30 +407,61 @@ function loadBackup(e) {
     const reader = new FileReader();
     reader.onload = async function(event) {
         try {
-            const importedData = JSON.parse(event.target.result);
-            if (!Array.isArray(importedData)) throw new Error("Invalid format");
+            const backupData = JSON.parse(event.target.result);
+            
+            // Check if it's the new format or old format
+            let importedData;
+            if (backupData.transactions && Array.isArray(backupData.transactions)) {
+                importedData = backupData.transactions;
+            } else if (Array.isArray(backupData)) {
+                importedData = backupData;
+            } else {
+                throw new Error("Invalid backup file format");
+            }
+
+            if (importedData.length === 0) {
+                alert("No transactions found in backup file");
+                return;
+            }
+
+            if (!confirm(`This will import ${importedData.length} transactions. Continue?`)) {
+                return;
+            }
 
             const batch = db.batch();
             let count = 0;
 
             importedData.forEach(item => {
-                // Add userEmail to imported items if missing
-                item.userEmail = userEmail;
+                // Validate required fields
+                if (!item.date || !item.amount || !item.type) {
+                    console.warn("Skipping invalid transaction:", item);
+                    return;
+                }
+
                 const docRef = db.collection('transactions').doc();
-                batch.set(docRef, item);
+                batch.set(docRef, {
+                    description: item.description || '',
+                    amount: parseFloat(item.amount),
+                    type: item.type,
+                    category: item.category || 'other',
+                    date: item.date,
+                    createdAt: item.createdAt || new Date().toISOString()
+                });
                 count++;
             });
 
             await batch.commit();
-            alert(`Successfully restored ${count} transactions!`);
+            alert(`✅ Successfully imported ${count} transactions!`);
             loadTransactions();
         } catch (error) {
-            alert("Error loading backup: " + error.message);
+            console.error("Load backup error:", error);
+            alert("❌ Error loading backup: " + error.message);
         }
+        
+        // Reset input
+        e.target.value = ''; 
     };
     reader.readAsText(file);
-    // Reset input so same file can be selected again
-    e.target.value = ''; 
 }
 
 // ================= UTILITIES =================
