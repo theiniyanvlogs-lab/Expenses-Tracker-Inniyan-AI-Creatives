@@ -71,7 +71,7 @@ function setupEventListeners() {
         if (e.target === editModal) editModal.classList.add('hidden');
     });
     
-    // ✅ IMPORTANT: Handle edit form submission
+    // IMPORTANT: Handle edit form submission
     editForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         await updateTransaction();
@@ -403,7 +403,7 @@ function generateDateRangePreview() {
 
 // ================= EXPORT & BACKUP =================
 
-// Export to PDF - IMPROVED VERSION with date range & totals
+// ✅ UPDATED: Export to PDF - BOLD TEXT & ASCENDING ORDER
 function exportToPDF() {
     // Filter transactions based on selected date range
     let filteredTransactions = [...transactions];
@@ -436,21 +436,27 @@ function exportToPDF() {
         return;
     }
 
+    // ✅ SORT IN ASCENDING ORDER (oldest first)
+    filteredTransactions.sort((a, b) => {
+        return new Date(a.date) - new Date(b.date);
+    });
+
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
 
-    // ===== HEADER =====
+    // ===== HEADER - BOLD =====
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
     doc.setTextColor(102, 126, 234);
     doc.text("Stitches by S: Financial Report", 105, 20, { align: 'center' });
     
-    // Date range
+    // Date range - BOLD
     doc.setFontSize(12);
     doc.setTextColor(100, 100, 100);
     doc.text(`Period: ${dateRangeText}`, 105, 28, { align: 'center' });
     doc.text(`Generated: ${new Date().toLocaleDateString('en-IN')}`, 105, 34, { align: 'center' });
 
-    // ===== SUMMARY BOX =====
+    // ===== SUMMARY BOX - BOLD =====
     const incomeTotal = filteredTransactions
         .filter(t => t.type === 'income')
         .reduce((sum, t) => sum + t.amount, 0);
@@ -465,7 +471,8 @@ function exportToPDF() {
     doc.setFillColor(248, 249, 250);
     doc.roundedRect(14, 40, 182, 25, 3, 3, 'F');
     
-    // Summary text
+    // Summary text - BOLD
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(67, 233, 123); // Green for income
     doc.text(`Total Income: Rs. ${incomeTotal.toFixed(2)}`, 20, 48);
@@ -476,12 +483,12 @@ function exportToPDF() {
     doc.setTextColor(102, 126, 234); // Blue for balance
     doc.text(`Net Balance: Rs. ${netBalance.toFixed(2)}`, 20, 64);
 
-    // Transaction count
+    // Transaction count - BOLD
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
     doc.text(`Transactions: ${filteredTransactions.length}`, 140, 48);
 
-    // ===== TABLE =====
+    // ===== TABLE - BOLD HEADERS & DATA =====
     const tableData = filteredTransactions.map(t => [
         formatDate(t.date),
         t.description,
@@ -497,12 +504,13 @@ function exportToPDF() {
         headStyles: { 
             fillColor: [102, 126, 234],
             textColor: 255,
-            fontStyle: 'bold',
-            fontSize: 9
+            fontStyle: 'bold',  // ✅ BOLD HEADERS
+            fontSize: 10
         },
         styles: { 
-            fontSize: 8,
-            cellPadding: 3
+            fontSize: 9,
+            cellPadding: 3,
+            fontStyle: 'bold'  // ✅ BOLD DATA
         },
         alternateRowStyles: {
             fillColor: [250, 250, 250]
@@ -513,21 +521,24 @@ function exportToPDF() {
                 const text = data.cell.raw;
                 if (text && text.startsWith('+')) {
                     data.cell.styles.textColor = [67, 233, 123]; // Green for income
-                    data.cell.styles.fontStyle = 'bold';
+                    data.cell.styles.fontStyle = 'bold';  // ✅ BOLD
                 } else if (text && text.startsWith('-')) {
                     data.cell.styles.textColor = [250, 112, 154]; // Pink for expense
+                    data.cell.styles.fontStyle = 'bold';  // ✅ BOLD
                 }
             }
         }
     });
 
-    // ===== FOOTER TOTALS =====
+    // ===== FOOTER TOTALS - BOLD =====
     const finalY = doc.lastAutoTable.finalY + 5;
     
     // Draw footer box
     doc.setFillColor(240, 240, 240);
     doc.roundedRect(14, finalY, 182, 20, 3, 3, 'F');
     
+    // Footer text - BOLD
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.text(`Income: Rs. ${incomeTotal.toFixed(2)}`, 20, finalY + 8);
     doc.text(`Expenses: Rs. ${expenseTotal.toFixed(2)}`, 20, finalY + 15);
@@ -537,6 +548,7 @@ function exportToPDF() {
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
+        doc.setFont("helvetica", "bold");  // ✅ BOLD
         doc.setFontSize(8);
         doc.setTextColor(150, 150, 150);
         doc.text(`Page ${i} of ${pageCount}`, 105, 290, { align: 'center' });
