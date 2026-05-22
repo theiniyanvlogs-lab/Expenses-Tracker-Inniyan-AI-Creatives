@@ -132,7 +132,7 @@ async function addTransaction(e) {
         await db.collection('transactions').add(newTransaction);
         transactionForm.reset();
         document.getElementById('date').valueAsDate = new Date();
-        loadTransactions();
+        await loadTransactions(); // Reload from Firebase to ensure sync
     } catch (error) {
         console.error("Error adding transaction:", error);
         updateSyncStatus('❌ Save Failed', 'error');
@@ -140,7 +140,7 @@ async function addTransaction(e) {
     }
 }
 
-// Delete Transaction - IMPROVED & FIXED VERSION
+// ✅ FIXED DELETE FUNCTION - PERMANENTLY DELETES FROM FIREBASE
 window.deleteTransaction = async function(id) {
     console.log('🗑️ Delete requested for ID:', id);
     
@@ -153,39 +153,37 @@ window.deleteTransaction = async function(id) {
     }
     
     // Show confirmation with transaction details
-    const confirmMessage = `Delete this transaction?\n\n📝 ${transaction.description}\n💰 ₹${transaction.amount.toFixed(2)}\n📅 ${formatDate(transaction.date)}`;
+    const confirmMessage = `Delete this transaction permanently?\n\n📝 ${transaction.description}\n💰 ₹${transaction.amount.toFixed(2)}\n📅 ${formatDate(transaction.date)}`;
     
-    if (confirm(confirmMessage)) {
-        try {
-            updateSyncStatus('🗑️ Deleting...', '');
-            
-            // Delete from Firebase FIRST
-            await db.collection('transactions').doc(id).delete();
-            
-            // Then remove from local array
-            transactions = transactions.filter(t => t.id !== id);
-            
-            // Re-render immediately
-            renderTransactions();
-            
-            console.log('✅ Transaction deleted successfully:', id);
-            updateSyncStatus('✅ Deleted', 'synced');
-            
-            // Show success message briefly
-            setTimeout(() => {
-                updateSyncStatus('✅ Live synced', 'synced');
-            }, 2000);
-            
-        } catch (error) {
-            console.error('❌ Error deleting transaction:', error);
-            updateSyncStatus('❌ Delete Failed', 'error');
-            alert('Failed to delete: ' + error.message + '\n\nPlease check your internet connection and try again.');
-            
-            // Reload from Firebase to sync
-            setTimeout(() => {
-                loadTransactions();
-            }, 1000);
-        }
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    try {
+        updateSyncStatus('🗑️ Deleting from Firebase...', '');
+        console.log('Deleting document ID:', id);
+        
+        // 🔥 CRITICAL: Delete from Firebase FIRST
+        await db.collection('transactions').doc(id).delete();
+        console.log('✅ Successfully deleted from Firebase');
+        
+        // 🔥 CRITICAL: Then reload from Firebase to ensure permanent sync
+        await loadTransactions();
+        
+        updateSyncStatus('✅ Deleted permanently', 'synced');
+        
+        // Show success message briefly
+        setTimeout(() => {
+            updateSyncStatus('✅ Live synced', 'synced');
+        }, 2000);
+        
+    } catch (error) {
+        console.error('❌ Error deleting from Firebase:', error);
+        updateSyncStatus('❌ Delete Failed', 'error');
+        alert('Failed to delete from database: ' + error.message + '\n\nPlease check your internet connection and Firebase permissions.');
+        
+        // Reload from Firebase to sync state
+        await loadTransactions();
     }
 };
 
@@ -228,7 +226,7 @@ async function updateTransaction() {
         
         editModal.classList.add('hidden');
         editForm.reset();
-        loadTransactions();
+        await loadTransactions(); // Reload to ensure sync
         updateSyncStatus('✅ Updated', 'synced');
     } catch (error) {
         console.error("Error updating:", error);
@@ -239,25 +237,31 @@ async function updateTransaction() {
 
 // Clear All Data
 async function clearAllData() {
-    if (confirm('⚠️ WARNING: This will delete ALL your transactions. This cannot be undone. Continue?')) {
-        try {
-            updateSyncStatus('🗑️ Clearing...', '');
-            
-            const batch = db.batch();
-            transactions.forEach(t => {
-                const docRef = db.collection('transactions').doc(t.id);
-                batch.delete(docRef);
-            });
-            await batch.commit();
-            
-            transactions = [];
-            renderTransactions();
-            updateSyncStatus('✅ All data cleared', 'synced');
-        } catch (error) {
-            console.error("Error clearing data:", error);
-            updateSyncStatus('❌ Clear Failed', 'error');
-            alert('Failed to clear data: ' + error.message);
-        }
+    if (!confirm('⚠️ WARNING: This will PERMANENTLY delete ALL transactions. Continue?')) {
+        return;
+    }
+    
+    if (!confirm('⚠️ This action CANNOT be undone. Type "YES" to confirm.')) {
+        return;
+    }
+
+    try {
+        updateSyncStatus('🗑️ Clearing all data...', '');
+        
+        const batch = db.batch();
+        transactions.forEach(t => {
+            const docRef = db.collection('transactions').doc(t.id);
+            batch.delete(docRef);
+        });
+        await batch.commit();
+        
+        transactions = [];
+        renderTransactions();
+        updateSyncStatus('✅ All data cleared', 'synced');
+    } catch (error) {
+        console.error("Error clearing data:", error);
+        updateSyncStatus('❌ Clear Failed', 'error');
+        alert('Failed to clear data: ' + error.message);
     }
 }
 
@@ -687,7 +691,7 @@ function loadBackup(e) {
                 }
 
                 // Create a unique document ID based on transaction data to prevent duplicates
-                const uniqueId = `${item.date}_${item.description.replace(/\s+/g, '_')}_${item.amount}_${Date.now()}`;
+                const uniqueId = `${item.date}_${item.description.replace(/\s+/g, '_')}_${item.amount}_${Date.now()}_${count}`;
                 const docRef = db.collection('transactions').doc(uniqueId);
                 
                 batch.set(docRef, {
@@ -710,7 +714,7 @@ function loadBackup(e) {
                 : `✅ Successfully imported ${count} transactions!`;
                 
             alert(successMessage);
-            loadTransactions();
+            await loadTransactions(); // Reload to sync
             updateSyncStatus('✅ Import complete', 'synced');
         } catch (error) {
             console.error("Load backup error:", error);
