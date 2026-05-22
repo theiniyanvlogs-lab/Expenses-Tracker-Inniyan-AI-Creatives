@@ -142,47 +142,34 @@ async function addTransaction(e) {
 
 // ✅ FIXED DELETE FUNCTION - PERMANENTLY DELETES FROM FIREBASE
 window.deleteTransaction = async function(id) {
-    console.log('🗑️ Delete requested for ID:', id);
+    console.log('🗑️ Delete clicked for ID:', id);
     
-    // Find the transaction to show in confirmation
-    const transaction = transactions.find(t => t.id === id);
-    if (!transaction) {
-        console.error('❌ Transaction not found:', id);
-        alert('Transaction not found. Please refresh the page.');
-        return;
-    }
-    
-    // Show confirmation with transaction details
-    const confirmMessage = `Delete this transaction permanently?\n\n📝 ${transaction.description}\n💰 ₹${transaction.amount.toFixed(2)}\n📅 ${formatDate(transaction.date)}`;
-    
-    if (!confirm(confirmMessage)) {
+    // Show simple confirmation
+    if (!confirm('Delete this transaction permanently?')) {
         return;
     }
     
     try {
-        updateSyncStatus('🗑️ Deleting from Firebase...', '');
-        console.log('Deleting document ID:', id);
+        updateSyncStatus('🗑️ Deleting...', '');
+        console.log('🔥 Deleting from Firebase:', id);
         
-        // 🔥 CRITICAL: Delete from Firebase FIRST
+        // 🔥 CRITICAL: Delete from Firebase FIRST with await
         await db.collection('transactions').doc(id).delete();
-        console.log('✅ Successfully deleted from Firebase');
         
-        // 🔥 CRITICAL: Then reload from Firebase to ensure permanent sync
+        console.log('✅ Deleted from Firebase successfully');
+        
+        // 🔥 CRITICAL: Reload from Firebase to ensure permanent sync
         await loadTransactions();
         
-        updateSyncStatus('✅ Deleted permanently', 'synced');
-        
-        // Show success message briefly
-        setTimeout(() => {
-            updateSyncStatus('✅ Live synced', 'synced');
-        }, 2000);
+        updateSyncStatus('✅ Deleted', 'synced');
+        alert('✅ Transaction deleted successfully!');
         
     } catch (error) {
-        console.error('❌ Error deleting from Firebase:', error);
+        console.error('❌ Delete failed:', error);
         updateSyncStatus('❌ Delete Failed', 'error');
-        alert('Failed to delete from database: ' + error.message + '\n\nPlease check your internet connection and Firebase permissions.');
+        alert('❌ Delete failed: ' + error.message);
         
-        // Reload from Firebase to sync state
+        // Reload to sync state
         await loadTransactions();
     }
 };
