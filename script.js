@@ -140,20 +140,49 @@ async function addTransaction(e) {
     }
 }
 
-// Delete Transaction - MAKE GLOBAL
+// Delete Transaction - IMPROVED & FIXED VERSION
 window.deleteTransaction = async function(id) {
-    if (confirm('Are you sure you want to delete this transaction?')) {
+    console.log('🗑️ Delete requested for ID:', id);
+    
+    // Find the transaction to show in confirmation
+    const transaction = transactions.find(t => t.id === id);
+    if (!transaction) {
+        console.error('❌ Transaction not found:', id);
+        alert('Transaction not found. Please refresh the page.');
+        return;
+    }
+    
+    // Show confirmation with transaction details
+    const confirmMessage = `Delete this transaction?\n\n📝 ${transaction.description}\n💰 ₹${transaction.amount.toFixed(2)}\n📅 ${formatDate(transaction.date)}`;
+    
+    if (confirm(confirmMessage)) {
         try {
+            updateSyncStatus('🗑️ Deleting...', '');
+            
+            // Remove from local array immediately for instant UI update
+            const index = transactions.findIndex(t => t.id === id);
+            if (index !== -1) {
+                transactions.splice(index, 1);
+                renderTransactions(); // Re-render immediately
+            }
+            
+            // Delete from Firebase
             await db.collection('transactions').doc(id).delete();
-            loadTransactions();
+            
+            console.log('✅ Transaction deleted successfully:', id);
             updateSyncStatus('✅ Deleted', 'synced');
+            
         } catch (error) {
-            console.error("Error deleting:", error);
+            console.error('❌ Error deleting transaction:', error);
+            
+            // Revert local change if Firebase delete failed
+            loadTransactions(); // Reload from Firebase to sync
+            
             updateSyncStatus('❌ Delete Failed', 'error');
-            alert('Failed to delete transaction.');
+            alert('Failed to delete: ' + error.message);
         }
     }
-}
+};
 
 // Open Edit Modal - MAKE GLOBAL
 window.openEditModal = function(id) {
@@ -207,19 +236,22 @@ async function updateTransaction() {
 async function clearAllData() {
     if (confirm('⚠️ WARNING: This will delete ALL your transactions. This cannot be undone. Continue?')) {
         try {
+            updateSyncStatus('🗑️ Clearing...', '');
+            
             const batch = db.batch();
             transactions.forEach(t => {
                 const docRef = db.collection('transactions').doc(t.id);
                 batch.delete(docRef);
             });
             await batch.commit();
+            
             transactions = [];
             renderTransactions();
             updateSyncStatus('✅ All data cleared', 'synced');
         } catch (error) {
             console.error("Error clearing data:", error);
             updateSyncStatus('❌ Clear Failed', 'error');
-            alert('Failed to clear data.');
+            alert('Failed to clear data: ' + error.message);
         }
     }
 }
@@ -283,10 +315,10 @@ function createTransactionHTML(t) {
                 ${t.type === 'income' ? '+' : '-'}₹${t.amount.toFixed(2)}
             </div>
             <div class="transaction-actions">
-                <button class="btn-edit" onclick="openEditModal('${t.id}')">
+                <button class="btn-edit" onclick="openEditModal('${t.id}')" title="Edit">
                     <i class="fas fa-edit"></i>
                 </button>
-                <button class="btn-delete" onclick="deleteTransaction('${t.id}')">
+                <button class="btn-delete" onclick="deleteTransaction('${t.id}')" title="Delete">
                     <i class="fas fa-trash"></i>
                 </button>
             </div>
