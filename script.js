@@ -140,34 +140,32 @@ async function addTransaction(e) {
     }
 }
 
-// ✅ FIXED DELETE FUNCTION - PERMANENTLY DELETES FROM FIREBASE
+// ✅ FIXED DELETE - Forces page reload to show changes
 window.deleteTransaction = async function(id) {
     console.log('🗑️ Delete clicked for ID:', id);
     
-    // Show simple confirmation
     if (!confirm('Delete this transaction permanently?')) {
         return;
     }
     
     try {
         updateSyncStatus('🗑️ Deleting...', '');
-        console.log('🔥 Deleting from Firebase:', id);
         
-        // 🔥 CRITICAL: Delete from Firebase FIRST with await
+        // Delete from Firebase
         await db.collection('transactions').doc(id).delete();
         
-        console.log('✅ Deleted from Firebase successfully');
+        console.log('✅ Deleted from Firebase');
         
-        // 🔥 CRITICAL: Reload from Firebase to ensure permanent sync
-        await loadTransactions();
-        
-        updateSyncStatus('✅ Deleted', 'synced');
-        alert('✅ Transaction deleted successfully!');
+        // ✅ FORCE PAGE RELOAD to refresh UI
+        alert('✅ Transaction deleted successfully!\n\nRefreshing page...');
+        location.reload(); // This reloads the page to show updated data
         
     } catch (error) {
         console.error('❌ Delete failed:', error);
         updateSyncStatus('❌ Delete Failed', 'error');
         alert('❌ Delete failed: ' + error.message);
+    }
+};
         
         // Reload to sync state
         await loadTransactions();
