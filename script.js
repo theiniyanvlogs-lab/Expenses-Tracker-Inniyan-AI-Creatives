@@ -157,18 +157,13 @@ window.deleteTransaction = async function(id) {
         console.log('✅ Deleted from Firebase');
         
         // ✅ FORCE PAGE RELOAD to refresh UI
-        alert('✅ Transaction deleted successfully!\n\nRefreshing page...');
+        alert('✅ Transaction deleted successfully!');
         location.reload(); // This reloads the page to show updated data
         
     } catch (error) {
         console.error('❌ Delete failed:', error);
         updateSyncStatus('❌ Delete Failed', 'error');
         alert('❌ Delete failed: ' + error.message);
-    }
-};
-        
-        // Reload to sync state
-        await loadTransactions();
     }
 };
 
