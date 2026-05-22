@@ -628,7 +628,7 @@ function saveBackup() {
     }
 }
 
-// Load Backup (JSON) - FIXED
+// Load Backup (JSON) - FIXED - Prevents Duplicates
 function loadBackup(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -653,7 +653,24 @@ function loadBackup(e) {
                 return;
             }
 
-            if (!confirm(`⚠️ This will import ${importedData.length} transactions. Continue?`)) {
+            // Check for duplicates before importing
+            const existingDescriptions = new Set(transactions.map(t => t.description + t.date + t.amount));
+            const newTransactions = importedData.filter(item => {
+                const key = item.description + item.date + item.amount;
+                return !existingDescriptions.has(key);
+            });
+
+            if (newTransactions.length === 0) {
+                alert("ℹ️ All transactions from backup already exist. No duplicates imported.");
+                return;
+            }
+
+            const duplicateCount = importedData.length - newTransactions.length;
+            const confirmMessage = duplicateCount > 0 
+                ? `📊 Import Summary:\n\n✅ New transactions: ${newTransactions.length}\n⚠️ Skipped duplicates: ${duplicateCount}\n\nContinue import?`
+                : `This will import ${newTransactions.length} transactions. Continue?`;
+
+            if (!confirm(confirmMessage)) {
                 return;
             }
 
@@ -662,27 +679,37 @@ function loadBackup(e) {
             const batch = db.batch();
             let count = 0;
 
-            importedData.forEach(item => {
+            newTransactions.forEach(item => {
                 // Validate required fields
                 if (!item.date || !item.amount || !item.type) {
                     console.warn("Skipping invalid transaction:", item);
                     return;
                 }
 
-                const docRef = db.collection('transactions').doc();
+                // Create a unique document ID based on transaction data to prevent duplicates
+                const uniqueId = `${item.date}_${item.description.replace(/\s+/g, '_')}_${item.amount}_${Date.now()}`;
+                const docRef = db.collection('transactions').doc(uniqueId);
+                
                 batch.set(docRef, {
                     description: item.description || '',
                     amount: parseFloat(item.amount),
                     type: item.type,
                     category: item.category || 'other',
                     date: item.date,
-                    createdAt: item.createdAt || new Date().toISOString()
+                    createdAt: item.createdAt || new Date().toISOString(),
+                    importedFrom: 'backup',
+                    importedAt: new Date().toISOString()
                 });
                 count++;
             });
 
             await batch.commit();
-            alert(`✅ Successfully imported ${count} transactions!`);
+            
+            const successMessage = duplicateCount > 0
+                ? `✅ Successfully imported ${count} new transactions.\n⚠️ Skipped ${duplicateCount} duplicates.`
+                : `✅ Successfully imported ${count} transactions!`;
+                
+            alert(successMessage);
             loadTransactions();
             updateSyncStatus('✅ Import complete', 'synced');
         } catch (error) {
