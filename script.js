@@ -159,27 +159,32 @@ window.deleteTransaction = async function(id) {
         try {
             updateSyncStatus('🗑️ Deleting...', '');
             
-            // Remove from local array immediately for instant UI update
-            const index = transactions.findIndex(t => t.id === id);
-            if (index !== -1) {
-                transactions.splice(index, 1);
-                renderTransactions(); // Re-render immediately
-            }
-            
-            // Delete from Firebase
+            // Delete from Firebase FIRST
             await db.collection('transactions').doc(id).delete();
+            
+            // Then remove from local array
+            transactions = transactions.filter(t => t.id !== id);
+            
+            // Re-render immediately
+            renderTransactions();
             
             console.log('✅ Transaction deleted successfully:', id);
             updateSyncStatus('✅ Deleted', 'synced');
             
+            // Show success message briefly
+            setTimeout(() => {
+                updateSyncStatus('✅ Live synced', 'synced');
+            }, 2000);
+            
         } catch (error) {
             console.error('❌ Error deleting transaction:', error);
-            
-            // Revert local change if Firebase delete failed
-            loadTransactions(); // Reload from Firebase to sync
-            
             updateSyncStatus('❌ Delete Failed', 'error');
-            alert('Failed to delete: ' + error.message);
+            alert('Failed to delete: ' + error.message + '\n\nPlease check your internet connection and try again.');
+            
+            // Reload from Firebase to sync
+            setTimeout(() => {
+                loadTransactions();
+            }, 1000);
         }
     }
 };
@@ -570,23 +575,57 @@ function exportToCSV() {
     updateSyncStatus('📊 CSV exported!', 'synced');
 }
 
-// Save Backup (JSON) - FIXED
+// Save Backup (JSON) - FIXED VERSION
 function saveBackup() {
-    const backupData = {
-        version: "1.0",
-        exportDate: new Date().toISOString(),
-        transactions: transactions
-    };
+    console.log('💾 Saving backup...');
+    updateSyncStatus('💾 Creating backup...', '');
     
-    const dataStr = "text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `stitches_backup_${new Date().toISOString().split('T')[0]}.json`);
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
+    if (transactions.length === 0) {
+        alert("⚠️ No transactions to backup!");
+        updateSyncStatus('✅ Live synced', 'synced');
+        return;
+    }
     
-    updateSyncStatus('💾 Backup saved!', 'synced');
+    try {
+        const backupData = {
+            version: "1.0",
+            exportDate: new Date().toISOString(),
+            totalTransactions: transactions.length,
+            transactions: transactions
+        };
+        
+        const jsonString = JSON.stringify(backupData, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        // Create download link
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `stitches_backup_${new Date().toISOString().split('T')[0]}.json`;
+        
+        // Trigger download
+        document.body.appendChild(a);
+        a.click();
+        
+        // Cleanup
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 100);
+        
+        console.log('✅ Backup saved successfully');
+        updateSyncStatus('✅ Backup saved!', 'synced');
+        
+        // Reset status after 3 seconds
+        setTimeout(() => {
+            updateSyncStatus('✅ Live synced', 'synced');
+        }, 3000);
+        
+    } catch (error) {
+        console.error('❌ Backup error:', error);
+        updateSyncStatus('❌ Backup failed', 'error');
+        alert('Failed to save backup: ' + error.message);
+    }
 }
 
 // Load Backup (JSON) - FIXED
