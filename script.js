@@ -557,8 +557,8 @@ function exportToPDF() {
 
     // Save PDF
     const fileName = globalFromDate && globalToDate 
-        ? `StitchesByS_Report_${globalFromDate}_to_${globalToDate}.pdf`
-        : `StitchesByS_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+        ? `Expenses-Tracler@IAC_Report_${globalFromDate}_to_${globalToDate}.pdf`
+        : `Expenses-Tracler@IAC_Report_${new Date().toISOString().split('T')[0]}.pdf`;
     
     doc.save(fileName);
     updateSyncStatus('📄 PDF exported!', 'synced');
