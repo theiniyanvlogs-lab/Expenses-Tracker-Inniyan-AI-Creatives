@@ -71,10 +71,10 @@ function setupEventListeners() {
         if (e.target === editModal) editModal.classList.add('hidden');
     });
     
-    // IMPORTANT: Prevent form submission on edit modal
-    editForm.addEventListener('submit', (e) => {
+    // ✅ IMPORTANT: Handle edit form submission
+    editForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        updateTransaction();
+        await updateTransaction();
     });
 
     // Date Range Preview Modal
@@ -182,17 +182,19 @@ window.openEditModal = function(id) {
     editModal.classList.remove('hidden');
 }
 
-// Update Transaction - FIXED
+// ✅ IMPROVED UPDATE TRANSACTION - Better error handling & feedback
 async function updateTransaction() {
     const id = document.getElementById('editId').value;
     
+    console.log('✏️ Updating transaction:', id);
+    
     if (!id) {
-        alert('Error: No transaction ID found');
+        alert('❌ Error: No transaction ID found');
         return;
     }
     
     const updatedData = {
-        description: document.getElementById('editDescription').value,
+        description: document.getElementById('editDescription').value.trim(),
         amount: parseFloat(document.getElementById('editAmount').value),
         type: document.getElementById('editType').value,
         category: document.getElementById('editCategory').value,
@@ -200,18 +202,35 @@ async function updateTransaction() {
         updatedAt: new Date().toISOString()
     };
 
+    // Validate amount
+    if (isNaN(updatedData.amount) || updatedData.amount <= 0) {
+        alert('❌ Please enter a valid amount');
+        return;
+    }
+
     try {
-        // Use update() to modify existing document
+        updateSyncStatus('💾 Updating...', '');
+        console.log('Updating Firebase with:', updatedData);
+        
+        // Update in Firebase
         await db.collection('transactions').doc(id).update(updatedData);
         
+        console.log('✅ Update successful in Firebase');
+        
+        // Close modal
         editModal.classList.add('hidden');
         editForm.reset();
-        await loadTransactions(); // Reload to ensure sync
+        
+        // Reload transactions to reflect changes
+        await loadTransactions();
+        
         updateSyncStatus('✅ Updated', 'synced');
+        alert('✅ Transaction updated successfully!');
+        
     } catch (error) {
-        console.error("Error updating:", error);
+        console.error("❌ Update error:", error);
         updateSyncStatus('❌ Update Failed', 'error');
-        alert('Failed to update. Error: ' + error.message);
+        alert('❌ Failed to update: ' + error.message);
     }
 }
 
