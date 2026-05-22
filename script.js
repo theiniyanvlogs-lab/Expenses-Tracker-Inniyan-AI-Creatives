@@ -448,7 +448,7 @@ function exportToPDF() {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
     doc.setTextColor(102, 126, 234);
-    doc.text("Stitches by S: Financial Report", 105, 20, { align: 'center' });
+    doc.text("Expenses-Tracker@IAC: Financial Report", 105, 20, { align: 'center' });
     
     // Date range - BOLD
     doc.setFontSize(12);
